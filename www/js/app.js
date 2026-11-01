@@ -20,6 +20,7 @@ const dateLocale = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStar
 const auj = () => dateLocale(new Date());
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 const MOIS_LONG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
+const NATURES = { professionnel: 'Professionnel', personnel: 'Personnel', joint: 'Joint' };
 const TYPES_COMPTE = { banque: 'Banque', especes: 'Espèces (caisse)', epargne: 'Épargne', carte: 'Carte', paypal: 'PayPal', autre: 'Autre' };
 const MOYENS = { especes: 'Espèces', carte: 'Carte', virement: 'Virement', cheque: 'Chèque', prelevement: 'Prélèvement', paypal: 'PayPal', autre: 'Autre' };
 const STATUTS = { validee: 'Validée', prevue: 'Prévue', rapprochee: 'Rapprochée' };
@@ -137,13 +138,30 @@ function vueAuth(mode = 'connexion', message = '', emailPrerempli = '') {
       <div class="champ"><label>Adresse e-mail</label><input name="email" type="email" autocomplete="username" required></div>
       <div class="champ"><label>Mot de passe</label><input name="mdp" type="password" autocomplete="current-password" required></div>
       <button class="btn btn-primaire" style="width:100%;justify-content:center">Se connecter</button>
-      <p style="text-align:center;margin:14px 0 0"><button type="button" class="lien" id="l-oubli">Mot de passe oublié ?</button></p>
+      <p style="text-align:center;margin:14px 0 0"><button type="button" class="lien" id="l-oubli">Mot de passe oublié ?</button> · <button type="button" class="lien" id="l-creer">Créer un compte</button></p>
     </form>`;
     $('#f-auth').onsubmit = (e) => { e.preventDefault(); const f = e.target; action(f.querySelector('button'), async () => {
       const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.mdp.value });
       if (error) throw new Error(error.message === 'Invalid login credentials' ? 'E-mail ou mot de passe incorrect.' : error.message);
     }); };
     $('#l-oubli').onclick = () => vueAuth('oubli');
+    $('#l-creer').onclick = () => vueAuth('creer');
+  } else if (mode === 'creer') {
+    c.innerHTML = `${msg}<form id="f-auth">
+      <p>Créez votre accès personnel à B-ForCompt@ (comptes personnels et comptes joints).</p>
+      <div class="champ"><label>Nom et prénom</label><input name="nom" required autocomplete="name"></div>
+      <div class="champ"><label>Adresse e-mail</label><input name="email" type="email" required autocomplete="username"></div>
+      <div class="champ"><label>Mot de passe (8 caractères minimum)</label><input name="mdp" type="password" minlength="8" required autocomplete="new-password"></div>
+      <button class="btn btn-primaire" style="width:100%;justify-content:center">Créer mon compte</button>
+      <p style="text-align:center;margin:14px 0 0"><button type="button" class="lien" id="l-retour">Retour à la connexion</button></p>
+    </form>`;
+    $('#f-auth').onsubmit = (e) => { e.preventDefault(); const f = e.target; action(f.querySelector('button'), async () => {
+      const { data, error } = await sb.auth.signUp({ email: f.email.value.trim(), password: f.mdp.value,
+        options: { data: { app: C.structure, nom_complet: f.nom.value.trim() }, emailRedirectTo: window.Capacitor ? C.urlWeb : location.origin + location.pathname } });
+      if (error) throw new Error(/already/i.test(error.message) ? 'Un compte existe déjà avec cette adresse : utilisez « Mot de passe oublié ».' : error.message);
+      if (!data.session) vueAuth('connexion', 'Compte créé. Confirmez votre adresse avec le lien reçu par e-mail, puis connectez-vous.');
+    }); };
+    $('#l-retour').onclick = () => vueAuth('connexion');
   } else if (mode === 'oubli') {
     c.innerHTML = `${msg}<form id="f-auth">
       <p>Saisissez votre adresse : vous recevrez un e-mail pour choisir un nouveau mot de passe.</p>
@@ -210,14 +228,16 @@ const PROFILS = {
   super_utilisateur: { lib: 'Super utilisateur', icone: '⭐', cls: 'super' },
   utilisateur: { lib: 'Utilisateur', icone: '👤', cls: 'user' },
   lecture: { lib: 'Lecture seule', icone: '👁️', cls: 'lecture' },
-  client: { lib: 'Client', icone: '👤', cls: 'lecture' }
+  client: { lib: 'Comptes personnels', icone: '👤', cls: 'user' }
 };
 const RANG = ['admin', 'super_utilisateur', 'utilisateur', 'lecture', 'client'];
 R.profil = 'utilisateur';
 async function afficherProfil(user) {
   const { data } = await pf.from('acces').select('structure_code, role').eq('user_id', user.id);
   const roles = (data || []).filter(a => a.structure_code === C.structure || a.structure_code === 'bformatik').map(a => a.role);
-  R.profil = RANG.find(r => roles.includes(r)) || 'utilisateur';
+  R.profil = RANG.find(r => roles.includes(r)) || 'client';
+  R.pro = R.profil !== 'client';
+  $$('[data-pro]').forEach(a => { a.hidden = !R.pro; });
   const p = PROFILS[R.profil];
   const b = $('#badge-profil');
   b.className = 'badge-profil ' + p.cls;
@@ -229,7 +249,7 @@ async function demarrerApp() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { appDemarree = false; return vueAuth('connexion'); }
   if (enRecuperation) return vueAuth('nouveau-mdp');
-  const { data: ok, error } = await pf.rpc('a_acces', { p_structure: C.structure });
+  const { data: ok, error } = await db.rpc('peut_utiliser');
   if (error || !ok) { appDemarree = false; return vueAuth('refus'); }
   $('#ecran-auth').hidden = true; $('#ecran-app').hidden = false;
   $('#utilisateur').textContent = session.user.email;
@@ -268,19 +288,28 @@ async function router() {
 window.addEventListener('hashchange', router);
 
 /* ================================================================= TABLEAU DE BORD */
-const filtreTB = { annee: new Date().getFullYear(), mois: new Date().getMonth() };
+const filtreTB = { annee: new Date().getFullYear(), mois: new Date().getMonth(), perimetre: 'tout' };
 VUES.tableau = async (el) => {
-  const [soldes, tres, annees] = await Promise.all([
+  const dansPerimetre = (compteId) => { const n = compteParId(compteId)?.nature || 'professionnel';
+    return filtreTB.perimetre === 'tout' || (filtreTB.perimetre === 'pro' ? n === 'professionnel' : n !== 'professionnel'); };
+  const aDesPerso = R.comptes.some(c => c.nature && c.nature !== 'professionnel');
+  if (!R.pro) filtreTB.perimetre = 'perso';
+  const [soldesTous, toutesOps] = await Promise.all([
     chargerSoldes(),
-    db.from('v_tresorerie').select('*').maybeSingle(),
-    db.from('v_balance_annuelle').select('*')
+    db.from('operations').select('type, montant, date_operation, categorie_id, structure_code, moyen_paiement, statut, compte_id').neq('statut', 'prevue').limit(50000)
   ]);
-  const t = verifier(tres) || {};
-  const anneesDispo = [...new Set([new Date().getFullYear(), ...verifier(annees).map(a => a.annee)])].sort((a, b) => b - a);
+  const soldes = soldesTous.filter(s => dansPerimetre(s.compte_id));
+  const t = { total_general: soldes.reduce((a, s) => a + Number(s.solde_actuel), 0),
+    total_especes: soldes.filter(s => s.type === 'especes').reduce((a, s) => a + Number(s.solde_actuel), 0) };
+  t.total_hors_especes = t.total_general - t.total_especes;
+  const opsPerim = verifier(toutesOps, 'Opérations').filter(o => dansPerimetre(o.compte_id));
+  const parAnnee = {};
+  opsPerim.forEach(o => { const a = Number(o.date_operation.slice(0, 4)); const x = parAnnee[a] ||= { annee: a, recettes: 0, depenses: 0 };
+    o.type === 'recette' ? x.recettes += Number(o.montant) : x.depenses += Number(o.montant); });
+  const annees = { data: Object.values(parAnnee).map(x => ({ ...x, balance: x.recettes - x.depenses })), error: null };
+  const anneesDispo = [...new Set([new Date().getFullYear(), ...annees.data.map(a => a.annee)])].sort((a, b) => b - a);
   const { annee, mois } = filtreTB;
-  const ops = verifier(await db.from('operations')
-    .select('type, montant, date_operation, categorie_id, structure_code, moyen_paiement, statut')
-    .gte('date_operation', `${annee}-01-01`).lte('date_operation', `${annee}-12-31`).neq('statut', 'prevue').limit(20000), 'Opérations');
+  const ops = opsPerim.filter(o => o.date_operation.startsWith(String(annee)));
 
   const rec = Array(12).fill(0), dep = Array(12).fill(0), recEsp = Array(12).fill(0), depEsp = Array(12).fill(0);
   const parCat = {}, parCatAn = {}, parStruct = {};
@@ -304,6 +333,7 @@ VUES.tableau = async (el) => {
   el.innerHTML = `
     <div class="tete-vue"><h1>Tableau de bord</h1>
       <div class="actions">
+        ${aDesPerso && R.pro ? `<select id="tb-perim" style="width:auto"><option value="tout" ${filtreTB.perimetre === 'tout' ? 'selected' : ''}>Tous les comptes</option><option value="pro" ${filtreTB.perimetre === 'pro' ? 'selected' : ''}>🏢 Professionnels</option><option value="perso" ${filtreTB.perimetre === 'perso' ? 'selected' : ''}>🔒 Perso &amp; joints</option></select>` : ''}
         <select id="tb-mois" style="width:auto">${MOIS_LONG.map((m, i) => `<option value="${i}" ${i === mois ? 'selected' : ''}>${m}</option>`).join('')}</select>
         <select id="tb-annee" style="width:auto">${anneesDispo.map(a => `<option ${a === annee ? 'selected' : ''}>${a}</option>`).join('')}</select>
         <a class="btn btn-primaire" href="#/operations/nouvelle">＋ Nouvelle opération</a>
@@ -340,6 +370,7 @@ VUES.tableau = async (el) => {
     </div>`;
 
   $('#tb-annee').onchange = (e) => { filtreTB.annee = Number(e.target.value); router(); };
+  if ($('#tb-perim')) $('#tb-perim').onchange = (e) => { filtreTB.perimetre = e.target.value; router(); };
   $('#tb-mois').onchange = (e) => { filtreTB.mois = Number(e.target.value); router(); };
 
   const coul = { marine: '#11316e', bleu: '#2467b6', orange: '#f7941d', vert: '#16a34a', rouge: '#dc2626' };
@@ -484,7 +515,7 @@ async function formOperation(o = {}, apres) {
     </div>
     <div class="champ"><label>Libellé *</label><input name="libelle" required value="${esc(o.libelle || '')}" placeholder="ex : Facture EDF octobre"></div>
     <div class="ligne">
-      <div class="champ"><label>Compte *</label><select name="compte_id" required>${optsListe(R.comptes.filter(c => c.actif || c.id === o.compte_id), compteDefaut, 'Choisir…', c => `${c.nom} (${TYPES_COMPTE[c.type]})`)}</select></div>
+      <div class="champ"><label>Compte *</label><select name="compte_id" required>${optsListe(R.comptes.filter(c => c.actif || c.id === o.compte_id), compteDefaut, 'Choisir…', c => `${c.nom} (${TYPES_COMPTE[c.type]}${c.nature && c.nature !== 'professionnel' ? ' · ' + NATURES[c.nature] : ''})`)}</select></div>
       <div class="champ"><label>Moyen de paiement</label><select name="moyen_paiement">${opts(MOYENS, o.moyen_paiement || (compteParId(compteDefaut)?.type === 'especes' ? 'especes' : 'carte'))}</select></div>
     </div>
     <div class="ligne">
@@ -535,12 +566,13 @@ async function formOperation(o = {}, apres) {
         reference: val(f, 'reference'), statut: val(f, 'statut'), taux_tva: taux, montant_tva: taux ? Math.round(montant * taux / (100 + taux) * 100) / 100 : null,
         image_id: val(f, 'image_id'), notes: val(f, 'notes') };
       if (o.piece_id) rec.piece_id = o.piece_id;
+      if (o.transaction_id) { rec.transaction_id = o.transaction_id; rec.statut = 'rapprochee'; }
       const res = neuf ? await db.from('operations').insert(rec).select().single() : await db.from('operations').update(rec).eq('id', o.id).select().single();
       const op = verifier(res, 'Enregistrement');
       if (f.fichiers.files.length) await televerserDocuments([...f.fichiers.files], { operation_id: op.id, compte_id: op.compte_id, tiers_id: op.tiers_id,
         structure_code: op.structure_code, type: op.type === 'recette' ? 'recu' : 'facture', date_document: op.date_operation, montant: op.montant });
       fermerModale(); toast(neuf ? 'Opération enregistrée.' : 'Opération mise à jour.');
-      apres && apres();
+      apres && apres(op);
     }); };
     if (!neuf) {
       $('#op-suppr', m).onclick = (e) => action(e.target, async () => {
@@ -632,16 +664,17 @@ function formVirement(v = {}, apres) {
 /* ================================================================= COMPTES */
 VUES.comptes = async (el) => {
   await Promise.all([chargerReferentiels(), chargerSoldes()]);
-  el.innerHTML = `<div class="tete-vue"><h1>Comptes</h1><div class="actions"><button class="btn btn-primaire" id="co-nouveau">＋ Nouveau compte</button></div></div>
+  el.innerHTML = `<div class="tete-vue"><h1>Comptes</h1><div class="actions">${R.pro ? '' : ''}<button class="btn btn-primaire" id="co-nouveau">＋ Nouveau compte</button></div></div>
+    <p class="aide" style="margin-top:-8px">🏢 Professionnel : partagé avec l'équipe B-Form@tik · 🔒 Personnel : visible de vous seul · 👥 Joint : visible de ses titulaires uniquement.</p>
     <div class="grille g3">${R.comptes.map(c => { const s = R.soldes.find(x => x.compte_id === c.id);
       return `<div class="carte compte-carte" style="border-top-color:${esc(c.couleur || '#2467b6')};${c.actif ? '' : 'opacity:.6'}">
-        <div class="avec-image">${vignette(c.image_id, c.nom, true)}<div><h3 style="margin:0">${esc(c.nom)}</h3><span class="pastille ${c.type === 'especes' ? 'orange' : ''}">${TYPES_COMPTE[c.type]}</span> ${c.actif ? '' : '<span class="pastille">Archivé</span>'}</div></div>
+        <div class="avec-image">${vignette(c.image_id, c.nom, true)}<div><h3 style="margin:0">${esc(c.nom)}</h3><span class="pastille ${c.type === 'especes' ? 'orange' : ''}">${TYPES_COMPTE[c.type]}</span> <span class="pastille ${c.nature === 'professionnel' ? '' : c.nature === 'joint' ? 'rec' : 'orange'}">${c.nature === 'joint' ? '👥 ' : c.nature === 'personnel' ? '🔒 ' : '🏢 '}${NATURES[c.nature] || 'Professionnel'}</span> ${c.actif ? '' : '<span class="pastille">Archivé</span>'}</div></div>
         <div class="solde mt">${s ? fmt(s.solde_actuel) : '—'}</div>
         <div class="aide">${esc(c.banque || '')}${c.iban ? ' · ' + esc(c.iban) : ''}</div>
         <div class="aide">Solde initial ${fmt(c.solde_initial)} au ${fmtDate(c.date_ouverture)}</div>
         <div style="margin-top:10px;display:flex;gap:6px"><button class="btn btn-fantome btn-petit" data-modif="${c.id}">Modifier</button>
           <a class="btn btn-fantome btn-petit" href="#/operations" data-filtre="${c.id}">Opérations</a></div></div>`; }).join('') || '<div class="carte">Aucun compte.</div>'}</div>`;
-  $('#co-nouveau').onclick = () => formCompte({}, router);
+  $('#co-nouveau').onclick = () => formCompte({ nature: R.pro ? 'professionnel' : 'personnel' }, router);
   el.onclick = (e) => {
     const b = e.target.closest('[data-modif]'); if (b) formCompte(compteParId(b.dataset.modif), router);
     const a = e.target.closest('[data-filtre]'); if (a) { filtreOp.compte = a.dataset.filtre; filtreOp.du = ''; }
@@ -652,6 +685,11 @@ function formCompte(c = {}, apres) {
   ouvrirModale(neuf ? 'Nouveau compte' : 'Modifier le compte', `<form id="f-co">
     <div class="ligne"><div class="champ"><label>Nom *</label><input name="nom" required value="${esc(c.nom || '')}"></div>
       <div class="champ"><label>Type</label><select name="type">${opts(TYPES_COMPTE, c.type || 'banque')}</select></div></div>
+    <div class="champ"><label>Nature du compte</label><select name="nature">${Object.entries(NATURES).filter(([k]) => R.pro || k !== 'professionnel').map(([k, v]) => `<option value="${k}" ${k === (c.nature || 'professionnel') ? 'selected' : ''}>${v}</option>`).join('')}</select>
+      <div class="aide">Personnel : visible de vous seul. Joint : partagé avec les titulaires que vous ajoutez (ex. conjoint). Professionnel : partagé avec l'équipe B-Form@tik.</div></div>
+    ${!neuf && c.nature !== 'professionnel' ? `<div class="champ"><label>Titulaires</label><div id="co-titulaires" class="aide">Chargement…</div>
+      <div style="display:flex;gap:8px;margin-top:6px"><input id="co-email-tit" type="email" placeholder="adresse e-mail du co-titulaire"><button type="button" class="btn btn-bleu btn-petit" id="co-ajout-tit">Ajouter</button></div>
+      <div class="aide">La personne doit avoir créé son accès B-ForCompt@ (« Créer un compte » sur l'écran de connexion).</div></div>` : ''}
     <div class="ligne"><div class="champ"><label>Banque</label><input name="banque" value="${esc(c.banque || '')}"></div>
       <div class="champ"><label>IBAN</label><input name="iban" value="${esc(c.iban || '')}"></div></div>
     <div class="ligne3"><div class="champ"><label>Solde initial (€)</label><input name="solde_initial" inputmode="decimal" value="${c.solde_initial ?? 0}"></div>
@@ -664,9 +702,27 @@ function formCompte(c = {}, apres) {
       <button type="button" class="btn btn-fantome" data-fermer>Annuler</button><button class="btn btn-primaire">Enregistrer</button></div></form>`, (m) => {
     brancherChoixImage(m);
     const f = $('#f-co', m);
+    const chargerTitulaires = async () => {
+      const box = $('#co-titulaires', m); if (!box) return;
+      const t = verifier(await db.rpc('titulaires', { p_compte: c.id }));
+      box.innerHTML = t.map(x => `<div class="avec-image" style="margin-bottom:4px">${x.role === 'titulaire' ? '👤' : '👥'} <b>${esc(x.email)}</b> <span class="aide">${x.role === 'titulaire' ? 'titulaire' : 'co-titulaire'}</span>
+        ${t.length > 1 ? `<button type="button" class="btn btn-danger btn-petit" data-retirer="${x.user_id}">Retirer</button>` : ''}</div>`).join('');
+      box.onclick = (e) => { const b = e.target.closest('[data-retirer]'); if (b) action(b, async () => {
+        if (!await confirmer('Retirer ce titulaire ? Il ne verra plus ce compte.')) return;
+        verifier(await db.rpc('retirer_titulaire', { p_compte: c.id, p_user: b.dataset.retirer })); chargerTitulaires(); }); };
+    };
+    if ($('#co-ajout-tit', m)) {
+      chargerTitulaires();
+      $('#co-ajout-tit', m).onclick = (e) => action(e.currentTarget, async () => {
+        const email = $('#co-email-tit', m).value.trim(); if (!email) return;
+        verifier(await db.rpc('ajouter_titulaire', { p_compte: c.id, p_email: email }), 'Titulaire');
+        $('#co-email-tit', m).value = ''; f.nature.value = 'joint'; toast('Co-titulaire ajouté : le compte est maintenant joint.'); chargerTitulaires();
+      });
+    }
     f.onsubmit = (e) => { e.preventDefault(); action(f.querySelector('.btn-primaire'), async () => {
-      const rec = { nom: val(f, 'nom'), type: val(f, 'type'), banque: val(f, 'banque'), iban: val(f, 'iban'), solde_initial: num(f, 'solde_initial') || 0,
+      const rec = { nom: val(f, 'nom'), type: val(f, 'type'), nature: val(f, 'nature'), banque: val(f, 'banque'), iban: val(f, 'iban'), solde_initial: num(f, 'solde_initial') || 0,
         date_ouverture: val(f, 'date_ouverture'), couleur: val(f, 'couleur'), image_id: val(f, 'image_id'), notes: val(f, 'notes'), actif: f.actif.checked };
+      if (neuf && rec.nature !== 'professionnel') rec.proprietaire = (await sb.auth.getUser()).data.user?.id;
       verifier(neuf ? await db.from('comptes').insert(rec) : await db.from('comptes').update(rec).eq('id', c.id), 'Compte');
       await chargerReferentiels(); fermerModale(); toast('Compte enregistré.'); apres ? apres() : router();
     }); };
@@ -734,7 +790,11 @@ function formTiers(t = {}) {
       <div class="champ"><label>Type</label><select name="type">${opts(TYPES_TIERS, t.type || 'fournisseur')}</select></div></div>
     <div class="champ"><label>Catégorie proposée par défaut</label><select name="categorie_defaut_id">${optsListe(R.categories, t.categorie_defaut_id, 'Aucune', c => `${c.nom} (${c.type === 'depense' ? 'dépense' : 'recette'})`)}</select></div>
     <div class="champ"><label>Image / logo</label>${choixImageHtml('image_id', t.image_id)}</div>
-    <div class="ligne"><div class="champ"><label>E-mail</label><input name="email" type="email" value="${esc(t.email || '')}"></div>
+    <div class="champ"><label>Adresses e-mail liées</label><input name="emails" value="${esc((t.emails || []).join(', '))}" placeholder="factures@edf.fr, @orange.fr">
+      <div class="aide">Séparées par des virgules. « @domaine.fr » reconnaît toute l'entreprise. Sert à relier automatiquement les e-mails de factures.</div></div>
+    <div class="champ"><label>Libellés bancaires reconnus</label><input name="motifs_banque" value="${esc((t.motifs_banque || []).join(', '))}" placeholder="PRLV SEPA EDF, EDF CLIENTS">
+      <div class="aide">Morceaux de texte qui apparaissent sur vos relevés pour cette provenance.</div></div>
+    <div class="ligne"><div class="champ"><label>E-mail de contact</label><input name="email" type="email" value="${esc(t.email || '')}"></div>
       <div class="champ"><label>Téléphone</label><input name="telephone" value="${esc(t.telephone || '')}"></div></div>
     <div class="ligne"><div class="champ"><label>Adresse</label><input name="adresse" value="${esc(t.adresse || '')}"></div>
       <div class="champ"><label>SIRET</label><input name="siret" value="${esc(t.siret || '')}"></div></div>
@@ -745,7 +805,9 @@ function formTiers(t = {}) {
     const f = $('#f-ti', m);
     f.onsubmit = (e) => { e.preventDefault(); action(f.querySelector('.btn-primaire'), async () => {
       const rec = { nom: val(f, 'nom'), type: val(f, 'type'), categorie_defaut_id: val(f, 'categorie_defaut_id'), image_id: val(f, 'image_id'),
-        email: val(f, 'email'), telephone: val(f, 'telephone'), adresse: val(f, 'adresse'), siret: val(f, 'siret'), notes: val(f, 'notes') };
+        email: val(f, 'email'), telephone: val(f, 'telephone'), adresse: val(f, 'adresse'), siret: val(f, 'siret'), notes: val(f, 'notes'),
+        emails: (val(f, 'emails') || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean),
+        motifs_banque: (val(f, 'motifs_banque') || '').split(',').map(s => s.trim()).filter(Boolean) };
       const r = neuf ? await db.from('tiers').insert(rec) : await db.from('tiers').update(rec).eq('id', t.id);
       if (r.error?.code === '23505') throw new Error('Une provenance porte déjà ce nom.');
       verifier(r, 'Provenance'); fermerModale(); toast('Provenance enregistrée.'); router();
@@ -1009,6 +1071,12 @@ VUES.budgets = async (el) => {
 };
 
 /* ---------------------------------------------------------------- démarrage */
+/* Modules complémentaires (banque & rapprochement…) */
+const API = { sb, db, pf, R, C, $, $$, esc, fmt, fmtDate, auj, opts, optsListe, toast, verifier, action, val, num, uuid, nettoyerNom,
+  ouvrirModale, fermerModale, confirmer, router, VUES, formOperation, chargerReferentiels, chargerSoldes, vignette,
+  compteParId, tiersParId, categorieParId, structureParCode, MOYENS, TYPES_COMPTE, NATURES };
+(window.BFC_MODULES || []).forEach(m => m(API));
+
 if (/type=recovery/.test(location.hash)) enRecuperation = true;
 demarrerApp();
 })();

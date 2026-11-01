@@ -43,16 +43,19 @@
       <nav class="menu" id="menu">
         <a href="#/tableau" data-route="tableau"><i>📊</i>Tableau de bord</a>
         <a href="#/operations" data-route="operations"><i>🧾</i>Dépenses &amp; recettes</a>
+        <a href="#/agenda" data-route="agenda"><i>📅</i>Agenda des sorties</a>
+        <a href="#/messagerie" data-route="messagerie" data-pro><i>✉️</i>Messagerie</a>
         <a href="#/especes" data-route="especes"><i>💶</i>Espèces</a>
         <a href="#/virements" data-route="virements"><i>🔁</i>Virements</a>
         <a href="#/comptes" data-route="comptes"><i>🏦</i>Comptes</a>
-        <a href="#/pieces" data-route="pieces"><i>📄</i>Factures &amp; devis</a>
+        <a href="#/banque" data-route="banque"><i>🔗</i>Banque &amp; rapprochement</a>
+        <a href="#/pieces" data-route="pieces" data-pro><i>📄</i>Factures &amp; devis</a>
         <a href="#/documents" data-route="documents"><i>📎</i>Documents</a>
         <div class="menu-titre">Paramètres</div>
         <a href="#/tiers" data-route="tiers"><i>🏷️</i>Provenances (tiers)</a>
         <a href="#/categories" data-route="categories"><i>🗂️</i>Catégories</a>
         <a href="#/images" data-route="images"><i>🖼️</i>Bibliothèque d'images</a>
-        <a href="#/budgets" data-route="budgets"><i>🎯</i>Budgets</a>
+        <a href="#/budgets" data-route="budgets" data-pro><i>🎯</i>Budgets</a>
         <div class="menu-pied">B-ForCompt@ · created by <b>B-Form@tik</b></div>
       </nav>
       <main id="vue" class="vue" tabindex="-1"></main>
@@ -73,6 +76,8 @@
   <script src="vendor/jspdf.umd.min.js"></script>
   <script src="vendor/jspdf.plugin.autotable.min.js"></script>
   <script src="js/export.js"></script>
+  <script src="js/banque.js"></script>
+  <script src="js/agenda.js"></script>
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
 </body>
