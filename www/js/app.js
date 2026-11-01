@@ -204,6 +204,27 @@ function vueAuth(mode = 'connexion', message = '', emailPrerempli = '') {
 }
 
 let appDemarree = false, enRecuperation = false;
+/* Type de compte affiché en haut : Administrateur, Super utilisateur, Utilisateur, Lecture seule */
+const PROFILS = {
+  admin: { lib: 'Administrateur', icone: '👑', cls: 'admin' },
+  super_utilisateur: { lib: 'Super utilisateur', icone: '⭐', cls: 'super' },
+  utilisateur: { lib: 'Utilisateur', icone: '👤', cls: 'user' },
+  lecture: { lib: 'Lecture seule', icone: '👁️', cls: 'lecture' },
+  client: { lib: 'Client', icone: '👤', cls: 'lecture' }
+};
+const RANG = ['admin', 'super_utilisateur', 'utilisateur', 'lecture', 'client'];
+R.profil = 'utilisateur';
+async function afficherProfil(user) {
+  const { data } = await pf.from('acces').select('structure_code, role').eq('user_id', user.id);
+  const roles = (data || []).filter(a => a.structure_code === C.structure || a.structure_code === 'bformatik').map(a => a.role);
+  R.profil = RANG.find(r => roles.includes(r)) || 'utilisateur';
+  const p = PROFILS[R.profil];
+  const b = $('#badge-profil');
+  b.className = 'badge-profil ' + p.cls;
+  b.innerHTML = `<span>${p.icone}</span>${esc(p.lib)}`;
+  b.title = `Connecté en tant que ${p.lib} · ${user.email}`;
+  b.hidden = false;
+}
 async function demarrerApp() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { appDemarree = false; return vueAuth('connexion'); }
@@ -212,6 +233,7 @@ async function demarrerApp() {
   if (error || !ok) { appDemarree = false; return vueAuth('refus'); }
   $('#ecran-auth').hidden = true; $('#ecran-app').hidden = false;
   $('#utilisateur').textContent = session.user.email;
+  await afficherProfil(session.user);
   try { await chargerReferentiels(); } catch (e) { toast(e.message, true); }
   appDemarree = true;
   router();
@@ -238,6 +260,7 @@ async function router() {
   detruireGraphiques();
   const el = $('#vue');
   el.onclick = null;
+  if (!$('#modale').hidden) fermerModale();
   el.innerHTML = '<div class="chargement">Chargement…</div>';
   try { await VUES[v](el, param); } catch (e) { console.error(e); el.innerHTML = `<div class="carte"><h3>Erreur</h3><p>${esc(e.message)}</p></div>`; }
   el.focus({ preventScroll: true });
@@ -384,7 +407,7 @@ VUES.operations = async (el, param) => {
   const f = filtreOp;
   el.innerHTML = `
     <div class="tete-vue"><h1>Dépenses &amp; recettes</h1><div class="actions">
-      ${window.Capacitor ? '' : '<button class="btn btn-fantome" id="op-csv">⬇ Export CSV</button>'}
+      <button class="btn btn-fantome" id="op-pdf">📄 PDF</button><button class="btn btn-fantome" id="op-csv">⬇ Excel (CSV)</button>
       <button class="btn btn-bleu" id="op-rec">＋ Recette</button>
       <button class="btn btn-primaire" id="op-dep">＋ Dépense</button></div></div>
     <div class="carte"><form class="filtres" id="op-filtres">
@@ -414,7 +437,9 @@ VUES.operations = async (el, param) => {
   $('#op-liste').onclick = (e) => { const tr = e.target.closest('tr[data-id]'); if (tr) formOperation(liste.find(o => o.id === tr.dataset.id), charger); };
   $('#op-dep').onclick = () => formOperation({ type: 'depense' }, charger);
   $('#op-rec').onclick = () => formOperation({ type: 'recette' }, charger);
-  if ($('#op-csv')) $('#op-csv').onclick = () => exporterCsv(liste);
+  $('#op-csv').onclick = (e) => action(e.currentTarget, () => exporterCsv(liste));
+  $('#op-pdf').onclick = (e) => action(e.currentTarget, () => window.BFC_EXPORT.pdfOperations(liste, { periode: `Du ${f.du ? fmtDate(f.du) : 'début'} au ${f.au ? fmtDate(f.au) : fmtDate(auj())}`,
+    tiers: o => tiersParId(o.tiers_id)?.nom, categorie: o => categorieParId(o.categorie_id)?.nom, compte: o => compteParId(o.compte_id)?.nom, structure: o => structureParCode(o.structure_code)?.nom }));
   await charger();
   if (param === 'nouvelle') formOperation({ type: 'depense' }, charger);
 };
@@ -423,11 +448,7 @@ function exporterCsv(liste) {
   const ent = ['Date', 'Type', 'Libellé', 'Montant', 'Compte', 'Moyen de paiement', 'Catégorie', 'Provenance', 'Structure', 'Référence', 'TVA %', 'Montant TVA', 'Statut', 'Notes'];
   const lignes = liste.map(o => [o.date_operation, o.type, o.libelle, String(o.montant).replace('.', ','), compteParId(o.compte_id)?.nom, MOYENS[o.moyen_paiement],
     categorieParId(o.categorie_id)?.nom, tiersParId(o.tiers_id)?.nom, structureParCode(o.structure_code)?.nom, o.reference, o.taux_tva, o.montant_tva, STATUTS[o.statut], o.notes]);
-  const csv = [ent, ...lignes].map(l => l.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' }));
-  a.download = `B-ForCompta_operations_${auj()}.csv`; a.click();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  return window.BFC_EXPORT.csv(`B-ForCompta_operations_${auj()}.csv`, ent, lignes);
 }
 
 async function televerserDocuments(fichiers, lien) {
@@ -878,7 +899,7 @@ function formPiece(p = {}) {
     <div class="champ"><label>Notes / conditions</label><textarea name="notes" rows="2">${esc(p.notes || '')}</textarea></div>
     <div class="modale-pied">
       ${neuf ? '' : `<button type="button" class="btn btn-danger gauche" id="pi-suppr">Supprimer</button>
-        ${window.Capacitor ? '' : '<button type="button" class="btn btn-fantome" id="pi-imprimer">🖨 Imprimer / PDF</button>'}
+        <button type="button" class="btn btn-fantome" id="pi-imprimer">📄 PDF</button>
         ${p.type_piece === 'devis' && p.statut !== 'refuse' ? '<button type="button" class="btn btn-fantome" id="pi-convertir">→ Facturer</button>' : ''}
         ${p.type_piece === 'facture' && p.statut !== 'payee' ? '<button type="button" class="btn btn-bleu" id="pi-paye">💶 Encaisser</button>' : ''}`}
       <button type="button" class="btn btn-fantome" data-fermer>Fermer</button><button class="btn btn-primaire">Enregistrer</button></div></form>`, (m) => {
@@ -912,7 +933,7 @@ function formPiece(p = {}) {
         if (!p.numero && !await confirmer('Supprimer ce brouillon ?')) return;
         verifier(await pf.from('pieces').delete().eq('id', p.id)); fermerModale(); toast('Pièce supprimée.'); router();
       });
-      if ($('#pi-imprimer', m)) $('#pi-imprimer', m).onclick = () => imprimerPiece({ ...p, ...donnees() });
+      $('#pi-imprimer', m).onclick = (e) => action(e.currentTarget, () => window.BFC_EXPORT.pdfPiece({ ...p, ...donnees() }, structureParCode(val(f, 'structure_code'))));
       $('#pi-convertir', m)?.addEventListener('click', (e) => action(e.target, async () => {
         verifier(await pf.from('pieces').update({ statut: 'accepte' }).eq('id', p.id));
         const { id, numero, created_at, updated_at, ...base } = { ...p, ...donnees() };

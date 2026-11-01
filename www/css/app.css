@@ -52,6 +52,11 @@ h1, h2, h3 { color: var(--marine); font-weight: 900; margin: 0 0 .4em; }
 .entete-app { padding-left: 14px; border-left: 2px solid var(--bord); }
 .entete-droite { margin-left: auto; display: flex; align-items: center; gap: 10px; }
 .utilisateur { color: var(--gris); font-size: .9rem; }
+.badge-profil { display: inline-flex; align-items: center; gap: 6px; font-weight: 900; font-size: .82rem; padding: 6px 12px; border-radius: 999px; white-space: nowrap; letter-spacing: .02em; }
+.badge-profil.admin { background: linear-gradient(90deg, var(--orange), var(--orange-vif)); color: #fff; box-shadow: 0 3px 10px rgba(247,148,29,.35); }
+.badge-profil.super { background: linear-gradient(90deg, var(--bleu-fonce), var(--bleu)); color: #fff; }
+.badge-profil.user { background: var(--bleu-clair); color: var(--marine); }
+.badge-profil.lecture { background: #eef1f5; color: var(--gris); }
 .liseré { height: 6px; background: linear-gradient(90deg, var(--bleu-fonce) 0%, var(--bleu) 55%, var(--orange-vif) 100%); }
 .corps { flex: 1; display: grid; grid-template-columns: 250px 1fr; min-height: 0; }
 .menu { background: linear-gradient(180deg, var(--marine) 0%, var(--bleu-fonce) 100%); padding: 16px 10px; display: flex; flex-direction: column; gap: 2px; position: sticky; top: 54px; height: calc(100vh - 54px); overflow-y: auto; }
@@ -197,6 +202,12 @@ td.montant, th.montant { text-align: right; white-space: nowrap; font-weight: 80
   .entete { gap: 8px; padding: 8px 12px; }
   .entete-logo img { height: 26px; }
   .entete-droite .btn { padding: 6px 10px; font-size: .8rem; }
+  .badge-profil { padding: 5px 8px; font-size: .72rem; }
+  #btn-deconnexion { font-size: 0; padding: 6px 10px; }
+  #btn-deconnexion::before { content: '⏻'; font-size: 1rem; }
+  .entete-logo { min-width: 0; flex: 0 1 auto; }
+  .entete-logo img { height: auto; max-height: 26px; max-width: 100%; }
+  .badge-profil span { display: none; }
   .vue { padding: 16px 16px 60px; }
   .g2, .g3 { grid-template-columns: minmax(0, 1fr); }
   .ligne, .ligne3 { grid-template-columns: minmax(0, 1fr); }

@@ -33,6 +33,7 @@
       <a href="#/tableau" class="entete-logo"><img src="assets/logo.png" alt="B-Form@tik"></a>
       <div class="entete-app"><span class="marque petite">B-ForCompt<span>@</span></span></div>
       <div class="entete-droite">
+        <span id="badge-profil" class="badge-profil" hidden></span>
         <span id="utilisateur" class="utilisateur"></span>
         <button class="btn btn-fantome" id="btn-deconnexion">Déconnexion</button>
       </div>
@@ -69,6 +70,9 @@
 
   <script src="vendor/supabase.js"></script>
   <script src="vendor/chart.umd.js"></script>
+  <script src="vendor/jspdf.umd.min.js"></script>
+  <script src="vendor/jspdf.plugin.autotable.min.js"></script>
+  <script src="js/export.js"></script>
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
 </body>

@@ -11,5 +11,9 @@
     "@capacitor/assets": "3.0.5",
     "@capacitor/cli": "6.2.0",
     "@capacitor/core": "6.2.0"
+  },
+  "dependencies": {
+    "@capacitor/filesystem": "6.0.4",
+    "@capacitor/share": "6.0.4"
   }
 }
