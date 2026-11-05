@@ -34,6 +34,8 @@ jobs:
           npx cap add android
           npx capacitor-assets generate --android
           npx cap sync android
+          sed -i '/android.permission.INTERNET/a\    <uses-permission android:name="android.permission.CAMERA" />' android/app/src/main/AndroidManifest.xml
+          grep -c CAMERA android/app/src/main/AndroidManifest.xml
       - name: Compiler l'APK
         working-directory: android
         run: |
