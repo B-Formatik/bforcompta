@@ -281,6 +281,7 @@ async function router() {
   const el = $('#vue');
   el.onclick = null;
   if (!$('#modale').hidden) fermerModale();
+  document.querySelectorAll('.sous-modale').forEach(x => x.remove());
   el.innerHTML = '<div class="chargement">Chargement…</div>';
   try { await VUES[v](el, param); } catch (e) { console.error(e); el.innerHTML = `<div class="carte"><h3>Erreur</h3><p>${esc(e.message)}</p></div>`; }
   el.focus({ preventScroll: true });
@@ -604,6 +605,7 @@ VUES.especes = async (el) => {
       <button class="btn btn-fantome" id="es-retrait">🏧 Retrait banque → caisse</button>
       <button class="btn btn-fantome" id="es-depot">🏦 Dépôt caisse → banque</button>
       <button class="btn btn-bleu" id="es-rec">＋ Recette espèces</button>
+      <button class="btn btn-fantome" id="es-pdf">🖨 PDF</button>
       <button class="btn btn-primaire" id="es-dep">＋ Dépense espèces</button></div></div>
     <div class="grille g4">
       <div class="carte kpi principal"><div class="lib">Argent liquide disponible</div><div class="val">${fmt(total)}</div><div class="det">${caisses.length} caisse(s)</div></div>
@@ -616,6 +618,8 @@ VUES.especes = async (el) => {
         <td class="montant ${m.montant_signe < 0 ? 'negatif' : 'positif'}">${fmt(m.montant_signe)}</td></tr>`).join('') || '<tr><td colspan="4" class="vide">Aucun mouvement</td></tr>'}
       </tbody></table></div></div>`;
   const recharger = () => router();
+  $('#es-pdf').onclick = (e) => action(e.currentTarget, () => window.BFC_EXPORT.pdfTableau('Caisse espèces', `Disponible : ${fmt(total)}`, ['Date', 'Libellé', 'Caisse', 'Montant'],
+    mvts.map(m => [fmtDate(m.date_mouvement), m.libelle, compteParId(m.compte_id)?.nom || '', fmt(m.montant_signe)]), `Especes_${auj()}.pdf`, [3]));
   $('#es-dep').onclick = () => formOperation({ type: 'depense', compte_id: caisses[0].id, moyen_paiement: 'especes' }, recharger);
   $('#es-rec').onclick = () => formOperation({ type: 'recette', compte_id: caisses[0].id, moyen_paiement: 'especes' }, recharger);
   $('#es-retrait').onclick = () => formVirement({ compte_source_id: banques[0]?.id, compte_destination_id: caisses[0].id, libelle: 'Retrait espèces (DAB)' }, recharger);
@@ -625,12 +629,14 @@ VUES.especes = async (el) => {
 /* ================================================================= VIREMENTS */
 VUES.virements = async (el) => {
   const liste = verifier(await db.from('virements').select('*').order('date_virement', { ascending: false }).limit(500));
-  el.innerHTML = `<div class="tete-vue"><h1>Virements entre comptes</h1><div class="actions"><button class="btn btn-primaire" id="vi-nouveau">＋ Nouveau virement</button></div></div>
+  el.innerHTML = `<div class="tete-vue"><h1>Virements entre comptes</h1><div class="actions"><button class="btn btn-fantome" id="vi-pdf">🖨 PDF</button><button class="btn btn-primaire" id="vi-nouveau">＋ Nouveau virement</button></div></div>
     <div class="carte"><p class="aide" style="margin-top:0">Un virement déplace de l'argent entre deux de vos comptes (ex. retrait au distributeur = banque → caisse). Il ne compte ni en recette ni en dépense.</p>
     <div class="tableau-wrap"><table><thead><tr><th>Date</th><th>Libellé</th><th>De</th><th>Vers</th><th class="montant">Montant</th></tr></thead><tbody>
     ${liste.map(v => `<tr data-id="${v.id}" style="cursor:pointer"><td>${fmtDate(v.date_virement)}</td><td>${esc(v.libelle)}</td><td>${esc(compteParId(v.compte_source_id)?.nom)}</td><td>${esc(compteParId(v.compte_destination_id)?.nom)}</td><td class="montant">${fmt(v.montant)}</td></tr>`).join('') || '<tr><td colspan="5" class="vide">Aucun virement</td></tr>'}
     </tbody></table></div></div>`;
   $('#vi-nouveau').onclick = () => formVirement({}, router);
+  $('#vi-pdf').onclick = (e) => action(e.currentTarget, () => window.BFC_EXPORT.pdfTableau('Virements entre comptes', '', ['Date', 'Libellé', 'De', 'Vers', 'Montant'],
+    liste.map(v => [fmtDate(v.date_virement), v.libelle, compteParId(v.compte_source_id)?.nom || '', compteParId(v.compte_destination_id)?.nom || '', fmt(v.montant)]), `Virements_${auj()}.pdf`, [4]));
   $('tbody', el).onclick = (e) => { const tr = e.target.closest('tr[data-id]'); if (tr) formVirement(liste.find(v => v.id === tr.dataset.id), router); };
 };
 function formVirement(v = {}, apres) {
@@ -664,7 +670,7 @@ function formVirement(v = {}, apres) {
 /* ================================================================= COMPTES */
 VUES.comptes = async (el) => {
   await Promise.all([chargerReferentiels(), chargerSoldes()]);
-  el.innerHTML = `<div class="tete-vue"><h1>Comptes</h1><div class="actions">${R.pro ? '' : ''}<button class="btn btn-primaire" id="co-nouveau">＋ Nouveau compte</button></div></div>
+  el.innerHTML = `<div class="tete-vue"><h1>Comptes</h1><div class="actions">${R.pro ? '' : ''}<button class="btn btn-fantome" id="co-pdf">🖨 PDF</button><button class="btn btn-primaire" id="co-nouveau">＋ Nouveau compte</button></div></div>
     <p class="aide" style="margin-top:-8px">🏢 Professionnel : partagé avec l'équipe B-Form@tik · 🔒 Personnel : visible de vous seul · 👥 Joint : visible de ses titulaires uniquement.</p>
     <div class="grille g3">${R.comptes.map(c => { const s = R.soldes.find(x => x.compte_id === c.id);
       return `<div class="carte compte-carte" style="border-top-color:${esc(c.couleur || '#2467b6')};${c.actif ? '' : 'opacity:.6'}">
@@ -675,6 +681,8 @@ VUES.comptes = async (el) => {
         <div style="margin-top:10px;display:flex;gap:6px"><button class="btn btn-fantome btn-petit" data-modif="${c.id}">Modifier</button>
           <a class="btn btn-fantome btn-petit" href="#/operations" data-filtre="${c.id}">Opérations</a></div></div>`; }).join('') || '<div class="carte">Aucun compte.</div>'}</div>`;
   $('#co-nouveau').onclick = () => formCompte({ nature: R.pro ? 'professionnel' : 'personnel' }, router);
+  $('#co-pdf').onclick = (e) => action(e.currentTarget, () => window.BFC_EXPORT.pdfTableau('Comptes et soldes', `au ${fmtDate(auj())}`, ['Compte', 'Type', 'Nature', 'Banque', 'Solde'],
+    R.comptes.filter(c => c.actif).map(c => [c.nom, TYPES_COMPTE[c.type], NATURES[c.nature] || '', c.banque || '', fmt(R.soldes.find(s => s.compte_id === c.id)?.solde_actuel)]), `Comptes_${auj()}.pdf`, [4]));
   el.onclick = (e) => {
     const b = e.target.closest('[data-modif]'); if (b) formCompte(compteParId(b.dataset.modif), router);
     const a = e.target.closest('[data-filtre]'); if (a) { filtreOp.compte = a.dataset.filtre; filtreOp.du = ''; }

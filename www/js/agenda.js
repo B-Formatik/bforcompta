@@ -10,11 +10,14 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
 const ag = { annee: new Date().getFullYear(), mois: new Date().getMonth(), entrees: false, compte: '' };
 VUES.agenda = async (el) => {
   const debut = new Date(ag.annee, ag.mois, 1), fin = new Date(ag.annee, ag.mois + 1, 0);
-  const [opsR, virR, propR] = await Promise.all([
+  const [opsR, virR, propR, listesR] = await Promise.all([
     db.from('operations').select('id, type, montant, date_operation, libelle, compte_id, tiers_id, statut').gte('date_operation', iso(debut)).lte('date_operation', iso(fin)).limit(5000),
     db.from('virements').select('*').gte('date_virement', iso(debut)).lte('date_virement', iso(fin)).limit(2000),
-    db.rpc('proprietaires_comptes')
+    db.rpc('proprietaires_comptes'),
+    db.from('listes_courses').select('id, titre, date_prevue, heure_prevue, total_estime, statut, compte_id').in('statut', ['programmee', 'en_cours']).gte('date_prevue', iso(debut)).lte('date_prevue', iso(fin))
   ]);
+  const coursesPrevues = {};
+  (listesR.data || []).forEach(l => (coursesPrevues[l.date_prevue] ||= []).push(l));
   const proprio = Object.fromEntries((verifier(propR) || []).map(p => [p.compte_id, p.proprietaires]));
   // mouvements du mois : sorties (dépenses + virements sortants) et, au choix, entrées
   const mvts = [];
@@ -47,6 +50,7 @@ VUES.agenda = async (el) => {
         return `<div class="ag-ligne" style="border-left-color:${esc(co?.couleur || '#2467b6')}" title="${esc(co?.nom || '')} · ${esc(proprio[cid] || '')}">
           <span class="ag-compte">${esc(co?.nom || 'Compte')}<small>${esc(proprio[cid] || '')}</small></span>
           ${g.s ? `<b class="negatif">−${fmt(g.s)}</b>` : ''}${g.e ? `<b class="positif">+${fmt(g.e)}</b>` : ''}</div>`; }).join('')}
+      ${(coursesPrevues[j] || []).map(l => `<div class="ag-ligne ag-courses" title="${esc(l.titre)}"><span class="ag-compte">🛒 ${esc(l.titre)}<small>${l.heure_prevue ? l.heure_prevue.slice(0, 5) + ' · ' : ''}prévu</small></span><b>~${fmt(l.total_estime)}</b></div>`).join('')}
     </div>`);
   }
   el.innerHTML = `
@@ -54,7 +58,7 @@ VUES.agenda = async (el) => {
       <button class="btn btn-fantome" id="ag-prec">◀</button>
       <b style="min-width:150px;text-align:center;text-transform:capitalize">${MOIS[ag.mois]} ${ag.annee}</b>
       <button class="btn btn-fantome" id="ag-suiv">▶</button>
-      <button class="btn btn-fantome" id="ag-auj">Aujourd'hui</button></div></div>
+      <button class="btn btn-fantome" id="ag-auj">Aujourd'hui</button><button class="btn btn-fantome" id="ag-pdf">🖨 PDF</button></div></div>
     <div class="carte"><form class="filtres" id="ag-filtres">
       <div><label>Compte</label><select name="compte">${optsListe(R.comptes, ag.compte, 'Tous les comptes', c => `${c.nom} · ${proprio[c.id] || ''}`)}</select></div>
       <div><label>Afficher</label><select name="entrees"><option value="">Sorties seulement</option><option value="1" ${ag.entrees ? 'selected' : ''}>Sorties et entrées</option></select></div>
@@ -68,6 +72,10 @@ VUES.agenda = async (el) => {
   const aller = (dm) => { const d = new Date(ag.annee, ag.mois + dm, 1); ag.annee = d.getFullYear(); ag.mois = d.getMonth(); router(); };
   $('#ag-prec').onclick = () => aller(-1); $('#ag-suiv').onclick = () => aller(1);
   $('#ag-auj').onclick = () => { ag.annee = new Date().getFullYear(); ag.mois = new Date().getMonth(); router(); };
+  $('#ag-pdf').onclick = (e) => action(e.currentTarget, () => window.BFC_EXPORT.pdfTableau(`Agenda des sorties · ${MOIS[ag.mois]} ${ag.annee}`, `Sorties ${fmt(totSorties)}${ag.entrees ? ' · Entrées ' + fmt(totEntrees) : ''}`,
+    ['Date', 'Compte', 'Propriétaire(s)', 'Libellé', 'Montant'],
+    liste.slice().sort((a, b) => a.jour.localeCompare(b.jour)).map(m => [fmtDate(m.jour), compteParId(m.compte)?.nom || '', proprio[m.compte] || '', m.libelle, (m.montant < 0 ? '-' : '+') + fmt(Math.abs(m.montant)).replace(/\u202f|\u00a0/g, ' ')]),
+    `Agenda_sorties_${ag.annee}-${String(ag.mois + 1).padStart(2, '0')}.pdf`, [4]));
   $('#ag-filtres').onchange = (e) => { if (e.target.name === 'entrees') ag.entrees = !!e.target.value; else ag.compte = e.target.value; router(); };
   el.querySelector('.ag-grille').onclick = (e) => {
     const c = e.target.closest('.ag-case[data-jour]'); if (!c) return;

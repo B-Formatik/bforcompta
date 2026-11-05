@@ -160,6 +160,26 @@ td.montant, th.montant { text-align: right; white-space: nowrap; font-weight: 80
 .graph { position: relative; height: 300px; }
 .graph.petit { height: 260px; }
 
+/* Courses */
+.lignes-courses td input { padding: 6px 8px; }
+.lignes-courses tr.achete td b { text-decoration: line-through; color: var(--gris); }
+.lignes-courses .vignette { width: 34px; height: 34px; }
+.tuile.choisie { outline: 3px solid var(--orange); }
+.sous-modale { position: fixed; inset: 0; z-index: 70; background: rgba(7,34,103,.5); display: grid; place-items: center; padding: 16px; }
+.sous-modale-boite { background: #fff; border-radius: 20px; width: min(760px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,.3); }
+.ag-courses { background: var(--orange-clair); border-left-color: var(--orange) !important; }
+
+/* Famille */
+.planning th, .planning td { vertical-align: top; min-width: 110px; }
+.planning th.auj, .planning td.auj { background: var(--orange-clair); }
+.planning td.jour-weekend { background: #f3f7fd; } .planning td.jour-vacances { background: #f0fbf4; } .planning td.jour-absent { background: #f3f3f3; opacity: .7; }
+.puce-tache { display: flex; gap: 6px; align-items: center; font-size: .8rem; font-weight: 700; color: var(--texte); background: #fff; border: 1px solid var(--bord); border-radius: 8px; padding: 3px 6px; margin-bottom: 3px; margin-top: 0; cursor: pointer; }
+.puce-tache input { width: 16px; height: 16px; }
+.puce-tache.fait { text-decoration: line-through; color: var(--gris); background: var(--vert-clair); }
+.tache-carte { display: flex; gap: 10px; align-items: center; padding: 10px; border: 1px solid var(--bord); border-left: 5px solid var(--bleu); border-radius: 12px; margin-bottom: 8px; cursor: pointer; background: #fff; }
+.tache-carte.imp3, .ag-ligne.imp3 { border-left-color: var(--rouge); } .tache-carte.imp2, .ag-ligne.imp2 { border-left-color: var(--orange); } .tache-carte.imp1, .ag-ligne.imp1 { border-left-color: var(--vert); }
+.tache-coche input { width: 22px; height: 22px; }
+
 /* Agenda */
 .ag-grille { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
 .ag-entete { text-align: center; font-size: .75rem; font-weight: 800; color: var(--gris); text-transform: uppercase; padding: 4px 0; }
@@ -177,7 +197,7 @@ td.montant, th.montant { text-align: right; white-space: nowrap; font-weight: 80
 /* Modale */
 .modale { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px; }
 .modale-fond { position: absolute; inset: 0; background: rgba(7, 34, 103, .45); }
-.modale-boite { position: relative; background: #fff; border-radius: 20px; width: min(720px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.25); overflow: hidden; }
+.modale-boite { position: relative; background: #fff; border-radius: 20px; width: min(820px, 100%); max-height: calc(100vh - 32px); display: flex; flex-direction: column; box-shadow: 0 20px 60px rgba(0,0,0,.25); overflow: hidden; }
 .modale-tete { display: flex; align-items: center; justify-content: space-between; padding: 14px 20px; border-bottom: 4px solid var(--orange-vif); background: linear-gradient(90deg, var(--marine), var(--bleu)); }
 .modale-tete h2 { color: #fff; margin: 0; font-size: 1.2rem; }
 .modale-tete .btn-x { color: #fff; }

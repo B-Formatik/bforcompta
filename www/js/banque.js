@@ -81,6 +81,7 @@ VUES.banque = async (el) => {
   const totalAT = pt.reduce((a, p) => a + Number(p.a_traiter || 0), 0);
   el.innerHTML = `
     <div class="tete-vue"><h1>🏦 Banque &amp; rapprochement</h1><div class="actions">
+      <button class="btn btn-fantome" id="bq-pdf">🖨 PDF</button>
       <button class="btn btn-fantome" id="bq-rappr">🔗 Lancer le rapprochement</button>
       <button class="btn btn-primaire" id="bq-import">⬆ Importer un relevé</button></div></div>
     <div class="bascule" id="bq-onglets" style="margin-bottom:14px">
@@ -90,6 +91,13 @@ VUES.banque = async (el) => {
     <div id="bq-contenu"></div>`;
   $('#bq-onglets').onclick = (e) => { const b = e.target.closest('button'); if (b) { filtre.onglet = b.dataset.o; router(); } };
   $('#bq-import').onclick = () => formImport();
+  $('#bq-pdf').onclick = (e) => action(e.currentTarget, async () => {
+    let q = db.from('transactions_bancaires').select('*').order('date_operation', { ascending: false }).limit(2000);
+    if (filtre.compte) q = q.eq('compte_id', filtre.compte); if (filtre.statut) q = q.eq('statut', filtre.statut);
+    const l = verifier(await q);
+    await window.BFC_EXPORT.pdfTableau('Mouvements bancaires', filtre.compte ? compteParId(filtre.compte)?.nom : 'Tous les comptes', ['Date', 'Libellé bancaire', 'Provenance', 'Statut', 'Montant'],
+      l.map(t => [fmtDate(t.date_operation), t.libelle_banque, tiersParId(t.tiers_id)?.nom || '', STATUTS_TB[t.statut], fmt(t.montant)]), `Mouvements_bancaires.pdf`, [4]);
+  });
   $('#bq-rappr').onclick = (e) => action(e.currentTarget, async () => {
     const r = verifier(await db.rpc('rapprocher', { p_compte: filtre.compte || null }))?.[0] || {};
     toast(`Rapprochement : ${r.mouvements_rapproches || 0} mouvement(s), ${r.emails_rapproches || 0} e-mail(s), ${r.provenances_reconnues || 0} provenance(s) reconnue(s).`);
