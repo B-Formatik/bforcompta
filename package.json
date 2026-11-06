@@ -2,7 +2,7 @@
   "name": "bforcompta",
   "version": "1.0.0",
   "private": true,
-  "description": "B-ForCompt@ — gestion financière B-Form@tik (web + Android)",
+  "description": "B-S@fe — assistant de vie B-Form@tik (web + Android)",
   "scripts": {
     "android:prep": "cap add android && capacitor-assets generate --android && cap sync android"
   },
@@ -14,6 +14,9 @@
   },
   "dependencies": {
     "@capacitor/filesystem": "6.0.4",
-    "@capacitor/share": "6.0.4"
+    "@capacitor/share": "6.0.4",
+    "@capacitor-community/speech-recognition": "6.0.1",
+    "@capacitor-community/text-to-speech": "4.1.1",
+    "@capacitor/geolocation": "6.1.1"
   }
 }
