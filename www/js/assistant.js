@@ -597,6 +597,9 @@ function afficherScan(m, r, espaceDefaut) {
         else { prix.push({ nom: a.libelle, avant: null, apres: a.prix_unitaire }); await db.from('produits').insert({ nom: a.libelle.slice(0, 80), prix_habituel: a.prix_unitaire, magasin_habituel_id: tiers_id, unite: 'pièce' }); }
       }
     }
+    // base de prix commune (tickets uniquement : ce sont des prix réellement payés)
+    if (type === 'ticket' && r.articles.length && A.enregistrerPrix) { const magNom = R.tiers.find(t => t.id === tiers_id)?.nom || r.magasin; let lieu = null; try { lieu = JSON.parse(localStorage.getItem('bsafe-lieu'))?.nom || null; } catch {}
+      await A.enregistrerPrix(r.articles, magNom, { ville: lieu, source: 'ticket', date }).catch(() => {}); }
     fermerModale();
     toast(type === 'devis' ? 'Devis enregistré.' : ech ? 'Facture à payer ajoutée à l\'échéancier.' : 'Dépense enregistrée avec son justificatif.');
     await rapportDepense({ type, total, date, libelle, espace, categorie_id: val(f, 'categorie_id'), tiers_id, op, ech, prix, compte_id: val(f, 'compte_id') });

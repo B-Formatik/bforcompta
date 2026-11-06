@@ -46,7 +46,7 @@ VUES.courses = async (el) => {
   $('#co-onglets').onclick = (e) => { const b = e.target.closest('button'); if (b) { vue.onglet = b.dataset.o; router(); } };
   $('#co-faire').onclick = () => nouvelleListe('en_cours');
   $('#co-prog').onclick = () => nouvelleListe('programmee');
-  $('#co-scan').onclick = () => scannerTicket(null);
+  $('#co-scan').onclick = () => A.scanner ? A.scanner('quotidien') : scannerTicket(null);
   return vue.onglet === 'produits' ? ongletProduits($('#co-contenu')) : ongletListes($('#co-contenu'));
 };
 
@@ -252,6 +252,9 @@ async function ouvrirListe(id) {
           else { const p = await db.from('produits').insert({ nom: x.libelle, prix_habituel: x.prix_unitaire, magasin_habituel_id: h.magasin_id, unite: x.unite || 'pièce' }).select().single();
             if (p.data) await db.from('lignes_courses').update({ produit_id: p.data.id }).eq('id', x.id); }
         }
+        // base de prix commune à tous les utilisateurs
+        const magNom = mag?.nom || h.lieu_paiement; let lieu = null; try { lieu = JSON.parse(localStorage.getItem('bsafe-lieu'))?.nom || null; } catch {}
+        if (magNom && A.enregistrerPrix) await A.enregistrerPrix(lignes.filter(y => y.prix_unitaire), magNom, { ville: lieu, source: 'courses', date: h.date_prevue }).catch(() => {});
         fermerModale(); toast(`Dépense de ${fmt(montant)} enregistrée : elle est comptée dans vos dépenses.`); router();
       });
     }

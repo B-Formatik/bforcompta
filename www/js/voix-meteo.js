@@ -235,6 +235,22 @@ async function traiter(phrase) {
   const t = norm(phrase); bulle(phrase, 'moi');
   if (!t) return parler('Je n\'ai rien entendu.');
   if (/^(stop|silence|tais toi|arrete)/.test(t)) return silence();
+  // journal alimentaire : « ce midi j'ai mangé du riz, du poulet et une salade »
+  if (/(j ai mange|j ai pris|j ai bu|on a mange|j ai dejeune|j ai dine)/.test(t) && !/(depense|euro|€)/.test(t) && A.analyserTexte) {
+    const h = new Date().getHours();
+    const repas = /petit dejeuner|ce matin/.test(t) ? 'petit_dejeuner' : /gouter/.test(t) ? 'gouter' : /(ce soir|diner|dine)/.test(t) ? 'diner' : /(ce midi|dejeuner|dejeune)/.test(t) ? 'dejeuner' : h < 10 ? 'petit_dejeuner' : h < 15 ? 'dejeuner' : h < 18 ? 'gouter' : 'diner';
+    const description = phrase.replace(/^.*?(j'ai mangé|j'ai pris|j'ai bu|on a mangé|j'ai déjeuné|j'ai dîné)\s*(de la |du |des |de l'|d'|un |une |le |la |les )?/i, '').trim() || phrase;
+    const r = await db.from('repas_journal').insert({ repas, description, jour: auj() });
+    if (r.error) return parler('Je n\'ai pas pu noter ce repas.');
+    const { g } = A.analyserTexte(description);
+    const retours = [];
+    if (g.legumes || g.fruits) retours.push('bien pour les fruits et légumes'); else retours.push('pensez à ajouter des légumes ou un fruit');
+    if (g.boissons_sucrees || g.sucres) retours.push('attention au sucré');
+    if (g.gras) retours.push('plat plutôt gras, plus léger au prochain repas');
+    if (g.charcuterie || g.sale) retours.push('attention au sel');
+    if (!g.eau) retours.push('et buvez de l\'eau');
+    return parler(`C'est noté pour le ${A.REPAS_J?.[repas]?.replace(/^\S+ /, '').toLowerCase() || 'repas'} : ${retours.join(', ')}. Le détail est dans Cuisine, Ce que j'ai mangé.`);
+  }
   // ajouter une dépense : « j'ai dépensé 12,50 euros chez Carrefour »
   const montant = t.match(/(\d+(?:[.,]\d{1,2})?) ?(?:€|euros?)/);
   if (montant && /(depense|achat|paye|ajoute|note|enregistre)/.test(t)) {
@@ -256,7 +272,7 @@ async function traiter(phrase) {
   if (/(facture|payer|echeance|prelevement)/.test(t)) return parler(await texteFactures());
   if (/(menu|manger|repas|diner|dejeuner|cuisine)/.test(t)) return parler(await texteMenu());
   if (/(agenda|faire|tache|rendez vous|rdv)/.test(t)) return parler(await texteAgenda());
-  return parler('Je n\'ai pas compris. Vous pouvez dire : point du jour, météo, combien il me reste, mes factures, le menu, rappelle-moi de… demain à 10 heures, ou j\'ai dépensé 12 euros chez Carrefour.');
+  return parler('Je n\'ai pas compris. Vous pouvez dire : point du jour, météo, combien il me reste, mes factures, le menu, j\'ai mangé du riz et du poulet, rappelle-moi de… demain à 10 heures, ou j\'ai dépensé 12 euros chez Carrefour.');
 }
 
 /* ---------------------------------------------------------------- panneau vocal (bouton flottant) */
@@ -300,5 +316,8 @@ if (vueAvant) VUES.aujourdhui = async (el, p) => {
     $('#aj-ecouter', el).onclick = (e) => action(e.target, async () => parler(await pointDuJour())); }
 };
 A.parler = parler; A.pointDuJour = pointDuJour;
+A.installerVoix = installer; A.carteMeteo = carteMeteo; A.choisirLieu = choisirLieu;
+A.resumeMeteo = async () => { const l = await lieuCourant().catch(() => lire(LIEU, null)); if (!l || !l.lat) return null; const d = await meteo(l); const ctx = await contexteFoyer().catch(() => ({}));
+  return { lieu: l, d, C: conseilsMeteo(d, ctx), code: code(d.current.weather_code) }; };
 setTimeout(() => { if (document.querySelector('#ecran-app:not([hidden])')) installer(); }, 3000);
 });
