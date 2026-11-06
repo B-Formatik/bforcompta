@@ -1,6 +1,6 @@
 {
   "appId": "fr.bformatik.bforcompta",
-  "appName": "B-ForCompt@",
+  "appName": "B-S@fe",
   "webDir": "www",
   "android": { "allowMixedContent": false },
   "server": { "androidScheme": "https" }
