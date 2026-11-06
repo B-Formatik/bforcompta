@@ -1,5 +1,5 @@
 /* =====================================================================
-   B-ForCompt@ — application de gestion financière · created by B-Form@tik
+   B-S@fe — application de gestion financière · created by B-Form@tik
    Base : Supabase « B-Form@tik », schéma bforcompta (+ plateforme)
    ===================================================================== */
 (() => {
@@ -21,11 +21,11 @@ const auj = () => dateLocale(new Date());
 const MOIS = ['janv.', 'févr.', 'mars', 'avr.', 'mai', 'juin', 'juil.', 'août', 'sept.', 'oct.', 'nov.', 'déc.'];
 const MOIS_LONG = ['janvier', 'février', 'mars', 'avril', 'mai', 'juin', 'juillet', 'août', 'septembre', 'octobre', 'novembre', 'décembre'];
 const NATURES = { professionnel: 'Professionnel', personnel: 'Personnel', joint: 'Joint' };
-const TYPES_COMPTE = { banque: 'Banque', especes: 'Espèces (caisse)', epargne: 'Épargne', carte: 'Carte', paypal: 'PayPal', autre: 'Autre' };
+const TYPES_COMPTE = { banque: 'Banque', especes: 'Espèces (caisse)', epargne: 'Épargne', carte: 'Carte', paypal: 'PayPal', placement: 'Placement / investissement', autre: 'Autre' };
 const MOYENS = { especes: 'Espèces', carte: 'Carte', virement: 'Virement', cheque: 'Chèque', prelevement: 'Prélèvement', paypal: 'PayPal', autre: 'Autre' };
 const STATUTS = { validee: 'Validée', prevue: 'Prévue', rapprochee: 'Rapprochée' };
 const TYPES_TIERS = { client: 'Client', fournisseur: 'Fournisseur', organisme: 'Organisme', salarie: 'Salarié', particulier: 'Particulier', autre: 'Autre' };
-const TYPES_DOC = { facture: 'Facture', recu: 'Reçu', ticket: 'Ticket de caisse', devis: 'Devis', releve: 'Relevé', contrat: 'Contrat', justificatif: 'Justificatif', autre: 'Autre' };
+const TYPES_DOC = { facture: 'Facture', recu: 'Reçu', ticket: 'Ticket de caisse', devis: 'Devis', releve: 'Relevé', contrat: 'Contrat', justificatif: 'Justificatif', garantie: 'Garantie', assurance: 'Assurance', bulletin: 'Bulletin scolaire', sante: 'Santé', administratif: 'Administratif', vehicule: 'Véhicule', autre: 'Autre' };
 const TYPES_IMAGE = { provenance: 'Provenance', categorie: 'Catégorie', compte: 'Compte', autre: 'Autre' };
 const STATUTS_PIECE = { brouillon: 'Brouillon', envoye: 'Envoyé', accepte: 'Accepté', refuse: 'Refusé', payee: 'Payée', partiellement_payee: 'Part. payée', annulee: 'Annulée', expire: 'Expiré' };
 const opts = (obj, sel) => Object.entries(obj).map(([k, v]) => `<option value="${k}" ${k === sel ? 'selected' : ''}>${esc(v)}</option>`).join('');
@@ -65,7 +65,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('#modal
 async function confirmer(message) { return window.confirm(message); }
 
 /* ---------------------------------------------------------------- référentiels */
-const R = { comptes: [], categories: [], tiers: [], images: [], structures: [], soldes: [] };
+const R = { comptes: [], categories: [], tiers: [], images: [], structures: [], soldes: [], espaces: [] };
 const urlsImages = new Map();   // storage_path -> URL signée
 
 async function chargerReferentiels() {
@@ -76,6 +76,8 @@ async function chargerReferentiels() {
     db.from('bibliotheque_images').select('*').order('nom'),
     pf.from('structures').select('*').eq('actif', true).order('nom')
   ]);
+  const esp = await db.from('espaces').select('*').eq('actif', true).order('ordre');
+  R.espaces = esp.error ? [] : esp.data;
   R.comptes = verifier(comptes, 'Comptes');
   R.categories = verifier(categories, 'Catégories');
   R.tiers = verifier(tiers, 'Tiers');
@@ -99,6 +101,7 @@ const compteParId = (id) => R.comptes.find(c => c.id === id);
 const categorieParId = (id) => R.categories.find(c => c.id === id);
 const tiersParId = (id) => R.tiers.find(t => t.id === id);
 const structureParCode = (c) => R.structures.find(s => s.code === c);
+const espaceParCode = (c) => R.espaces.find(e => e.code === c);
 function vignette(imageId, texte = '?', grande = false) {
   const img = imageId && imageParId(imageId);
   const url = img && urlsImages.get(img.storage_path);
@@ -148,7 +151,7 @@ function vueAuth(mode = 'connexion', message = '', emailPrerempli = '') {
     $('#l-creer').onclick = () => vueAuth('creer');
   } else if (mode === 'creer') {
     c.innerHTML = `${msg}<form id="f-auth">
-      <p>Créez votre accès personnel à B-ForCompt@ (comptes personnels et comptes joints).</p>
+      <p>Créez votre accès personnel à B-S@fe (comptes personnels et comptes joints).</p>
       <div class="champ"><label>Nom et prénom</label><input name="nom" required autocomplete="name"></div>
       <div class="champ"><label>Adresse e-mail</label><input name="email" type="email" required autocomplete="username"></div>
       <div class="champ"><label>Mot de passe (8 caractères minimum)</label><input name="mdp" type="password" minlength="8" required autocomplete="new-password"></div>
@@ -174,7 +177,7 @@ function vueAuth(mode = 'connexion', message = '', emailPrerempli = '') {
       const options = { redirectTo: window.Capacitor ? C.urlWeb : location.origin + location.pathname };
       const { error } = await sb.auth.resetPasswordForEmail(email, options);
       if (error) throw new Error(/rate limit/i.test(error.message) ? 'Trop de demandes : patientez quelques minutes avant de redemander un code.' : error.message);
-      if (window.Capacitor) vueAuth('connexion', 'E-mail envoyé (pensez aux spams). Ouvrez le lien : il vous amène sur la version web de B-ForCompt@ pour choisir votre mot de passe. Revenez ensuite vous connecter ici.');
+      if (window.Capacitor) vueAuth('connexion', 'E-mail envoyé (pensez aux spams). Ouvrez le lien : il vous amène sur la version web de B-S@fe pour choisir votre mot de passe. Revenez ensuite vous connecter ici.');
       else vueAuth('connexion', 'E-mail envoyé (pensez aux spams). Ouvrez le lien depuis cet appareil pour choisir votre mot de passe.');
     }); };
     $('#l-code').onclick = () => vueAuth('code', '', $('#f-auth').email.value.trim());
@@ -215,7 +218,7 @@ function vueAuth(mode = 'connexion', message = '', emailPrerempli = '') {
       demarrerApp();
     }); };
   } else if (mode === 'refus') {
-    c.innerHTML = `<div class="alerte">Votre compte n'a pas encore accès à B-ForCompt@.<br>Un administrateur B-Form@tik doit vous l'ouvrir (structure « bforcompta »).</div>
+    c.innerHTML = `<div class="alerte">Votre compte n'a pas encore accès à B-S@fe.<br>Un administrateur B-Form@tik doit vous l'ouvrir (structure « bforcompta »).</div>
       <p style="margin-top:14px"><button class="btn btn-fantome" id="l-deco">Se déconnecter</button></p>`;
     $('#l-deco').onclick = () => sb.auth.signOut();
   }
@@ -253,6 +256,7 @@ async function demarrerApp() {
   if (error || !ok) { appDemarree = false; return vueAuth('refus'); }
   $('#ecran-auth').hidden = true; $('#ecran-app').hidden = false;
   $('#utilisateur').textContent = session.user.email;
+  API.utilisateurId = session.user.id;
   await afficherProfil(session.user);
   try { await chargerReferentiels(); } catch (e) { toast(e.message, true); }
   appDemarree = true;
@@ -274,8 +278,8 @@ let graphiques = [];
 function detruireGraphiques() { graphiques.forEach(g => g.destroy()); graphiques = []; }
 async function router() {
   if (!appDemarree) return;
-  const [route, param] = (location.hash.replace(/^#\/?/, '') || 'tableau').split('/');
-  const v = VUES[route] ? route : 'tableau';
+  const [route, param] = (location.hash.replace(/^#\/?/, '') || 'aujourdhui').split('/');
+  const v = VUES[route] ? route : (VUES.aujourdhui ? 'aujourdhui' : 'tableau');
   $$('#menu a').forEach(a => a.classList.toggle('actif', a.dataset.route === v));
   detruireGraphiques();
   const el = $('#vue');
@@ -480,7 +484,7 @@ function exporterCsv(liste) {
   const ent = ['Date', 'Type', 'Libellé', 'Montant', 'Compte', 'Moyen de paiement', 'Catégorie', 'Provenance', 'Structure', 'Référence', 'TVA %', 'Montant TVA', 'Statut', 'Notes'];
   const lignes = liste.map(o => [o.date_operation, o.type, o.libelle, String(o.montant).replace('.', ','), compteParId(o.compte_id)?.nom, MOYENS[o.moyen_paiement],
     categorieParId(o.categorie_id)?.nom, tiersParId(o.tiers_id)?.nom, structureParCode(o.structure_code)?.nom, o.reference, o.taux_tva, o.montant_tva, STATUTS[o.statut], o.notes]);
-  return window.BFC_EXPORT.csv(`B-ForCompta_operations_${auj()}.csv`, ent, lignes);
+  return window.BFC_EXPORT.csv(`B-Safe_operations_${auj()}.csv`, ent, lignes);
 }
 
 async function televerserDocuments(fichiers, lien) {
@@ -523,6 +527,7 @@ async function formOperation(o = {}, apres) {
       <div class="champ"><label>Provenance / tiers</label><select name="tiers_id">${optsListe(R.tiers, o.tiers_id, '—')}</select><div class="aide"><a href="#/tiers">Gérer les provenances</a></div></div>
       <div class="champ"><label>Catégorie</label><select name="categorie_id"></select></div>
     </div>
+    ${R.espaces.length ? `<div class="champ"><label>Espace de vie</label><select name="espace">${optsListe(R.espaces, o.espace || null, 'Automatique (selon la catégorie)', e => e.icone + ' ' + e.nom)}</select></div>` : ''}
     <div class="ligne3">
       <div class="champ"><label>Structure concernée</label><select name="structure_code">${R.structures.map(s => `<option value="${s.code}" ${s.code === (o.structure_code || 'bformatik') ? 'selected' : ''}>${esc(s.nom)}</option>`).join('')}</select></div>
       <div class="champ"><label>Référence</label><input name="reference" value="${esc(o.reference || '')}" placeholder="n° facture, chèque…"></div>
@@ -566,6 +571,7 @@ async function formOperation(o = {}, apres) {
         moyen_paiement: val(f, 'moyen_paiement'), tiers_id: val(f, 'tiers_id'), categorie_id: val(f, 'categorie_id'), structure_code: val(f, 'structure_code'),
         reference: val(f, 'reference'), statut: val(f, 'statut'), taux_tva: taux, montant_tva: taux ? Math.round(montant * taux / (100 + taux) * 100) / 100 : null,
         image_id: val(f, 'image_id'), notes: val(f, 'notes') };
+      if (f.espace) rec.espace = val(f, 'espace');
       if (o.piece_id) rec.piece_id = o.piece_id;
       if (o.transaction_id) { rec.transaction_id = o.transaction_id; rec.statut = 'rapprochee'; }
       const res = neuf ? await db.from('operations').insert(rec).select().single() : await db.from('operations').update(rec).eq('id', o.id).select().single();
@@ -697,7 +703,7 @@ function formCompte(c = {}, apres) {
       <div class="aide">Personnel : visible de vous seul. Joint : partagé avec les titulaires que vous ajoutez (ex. conjoint). Professionnel : partagé avec l'équipe B-Form@tik.</div></div>
     ${!neuf && c.nature !== 'professionnel' ? `<div class="champ"><label>Titulaires</label><div id="co-titulaires" class="aide">Chargement…</div>
       <div style="display:flex;gap:8px;margin-top:6px"><input id="co-email-tit" type="email" placeholder="adresse e-mail du co-titulaire"><button type="button" class="btn btn-bleu btn-petit" id="co-ajout-tit">Ajouter</button></div>
-      <div class="aide">La personne doit avoir créé son accès B-ForCompt@ (« Créer un compte » sur l'écran de connexion).</div></div>` : ''}
+      <div class="aide">La personne doit avoir créé son accès B-S@fe (« Créer un compte » sur l'écran de connexion).</div></div>` : ''}
     <div class="ligne"><div class="champ"><label>Banque</label><input name="banque" value="${esc(c.banque || '')}"></div>
       <div class="champ"><label>IBAN</label><input name="iban" value="${esc(c.iban || '')}"></div></div>
     <div class="ligne3"><div class="champ"><label>Solde initial (€)</label><input name="solde_initial" inputmode="decimal" value="${c.solde_initial ?? 0}"></div>
@@ -891,7 +897,7 @@ VUES.documents = async (el) => {
   el.innerHTML = `<div class="tete-vue"><h1>Documents</h1><div class="actions"><button class="btn btn-primaire" id="do-ajout">＋ Téléverser</button></div></div>
     <div class="carte"><div class="tableau-wrap"><table><thead><tr><th>Document</th><th>Type</th><th class="masquer-mobile">Opération liée</th><th class="masquer-mobile">Structure</th><th>Date</th><th></th></tr></thead><tbody>
     ${docs.map(d => `<tr><td><a href="#" data-ouvrir="${esc(d.storage_path)}">📎 ${esc(d.nom_fichier)}</a><div class="aide">${d.taille_octets ? Math.round(d.taille_octets / 1024) + ' Ko' : ''}</div></td>
-      <td><span class="pastille">${TYPES_DOC[d.type]}</span></td>
+      <td><span class="pastille">${TYPES_DOC[d.type] || d.type}</span>${d.espace && espaceParCode(d.espace) ? ` <span class="aide">${espaceParCode(d.espace).icone} ${esc(espaceParCode(d.espace).nom)}</span>` : ''}</td>
       <td class="masquer-mobile">${d.operations ? `${esc(d.operations.libelle)} <span class="aide">${fmtDate(d.operations.date_operation)} · ${fmt(d.operations.montant)}</span>` : '<span class="aide">—</span>'}</td>
       <td class="masquer-mobile">${esc(structureParCode(d.structure_code)?.nom || d.structure_code)}</td>
       <td>${fmtDate(d.date_document || d.created_at.slice(0, 10))}</td>
@@ -908,11 +914,12 @@ VUES.documents = async (el) => {
       <div class="champ"><label>Date du document</label><input type="date" name="date_document" value="${auj()}"></div></div>
     <div class="ligne"><div class="champ"><label>Structure</label><select name="structure_code">${R.structures.map(s => `<option value="${s.code}" ${s.code === 'bformatik' ? 'selected' : ''}>${esc(s.nom)}</option>`).join('')}</select></div>
       <div class="champ"><label>Provenance</label><select name="tiers_id">${optsListe(R.tiers, null, '—')}</select></div></div>
-    <div class="champ"><label>Montant (€)</label><input name="montant" inputmode="decimal"></div>
+    <div class="ligne">${R.espaces.length ? `<div class="champ"><label>Espace de vie</label><select name="espace">${optsListe(R.espaces, null, '—', e => e.icone + ' ' + e.nom)}</select></div>` : ''}
+      <div class="champ"><label>Montant (€)</label><input name="montant" inputmode="decimal"></div></div>
     <div class="modale-pied"><button type="button" class="btn btn-fantome" data-fermer>Annuler</button><button class="btn btn-primaire">Envoyer</button></div></form>`, (m) => {
     const f = $('#f-do', m);
     f.onsubmit = (e) => { e.preventDefault(); action(f.querySelector('.btn-primaire'), async () => {
-      await televerserDocuments([...f.fichiers.files], { type: val(f, 'type'), date_document: val(f, 'date_document'), structure_code: val(f, 'structure_code'), tiers_id: val(f, 'tiers_id'), montant: num(f, 'montant') });
+      await televerserDocuments([...f.fichiers.files], { type: val(f, 'type'), date_document: val(f, 'date_document'), structure_code: val(f, 'structure_code'), tiers_id: val(f, 'tiers_id'), montant: num(f, 'montant'), ...(f.espace && val(f, 'espace') ? { espace: val(f, 'espace') } : {}) });
       fermerModale(); toast('Documents envoyés.'); router();
     }); };
   });
@@ -1081,6 +1088,7 @@ VUES.budgets = async (el) => {
 /* ---------------------------------------------------------------- démarrage */
 /* Modules complémentaires (banque & rapprochement…) */
 const API = { sb, db, pf, R, C, $, $$, esc, fmt, fmtDate, auj, opts, optsListe, toast, verifier, action, val, num, uuid, nettoyerNom,
+  televerserDocuments, ouvrirDocument, supprimerDocument, espaceParCode, TYPES_DOC, MOIS_LONG, detruireGraphiques, ajouterGraphique: (g) => graphiques.push(g),
   ouvrirModale, fermerModale, confirmer, router, VUES, formOperation, chargerReferentiels, chargerSoldes, vignette,
   compteParId, tiersParId, categorieParId, structureParCode, MOYENS, TYPES_COMPTE, NATURES };
 (window.BFC_MODULES || []).forEach(m => m(API));

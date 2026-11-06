@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>B-ForCompt@ · B-Form@tik</title>
-  <meta name="description" content="B-ForCompt@ — gestion des dépenses, recettes, espèces et balance de B-Form@tik">
+  <title>B-S@fe · B-Form@tik</title>
+  <meta name="description" content="B-S@fe — assistant de vie : finances, factures, foyer, cuisine, sport · by B-Form@tik">
   <meta name="theme-color" content="#11316e">
   <link rel="icon" type="image/png" href="assets/icone.png">
   <link rel="apple-touch-icon" href="assets/icone.png">
@@ -19,8 +19,8 @@
   <section id="ecran-auth" class="auth" hidden>
     <div class="auth-carte">
       <img src="assets/logo.png" alt="B-Form@tik" class="auth-logo">
-      <h1 class="marque">B-ForCompt<span>@</span></h1>
-      <p class="sous-titre">Gestion financière · dépenses, recettes &amp; espèces</p>
+      <h1 class="marque">B-S<span>@</span>fe</h1>
+      <p class="sous-titre">Votre assistant de vie · finances, foyer &amp; quotidien</p>
       <div id="auth-contenu"></div>
     </div>
     <div class="vague-bas" aria-hidden="true"></div>
@@ -30,8 +30,8 @@
   <div id="ecran-app" class="app" hidden>
     <header class="entete">
       <button class="btn-menu" id="btn-menu" aria-label="Menu">☰</button>
-      <a href="#/tableau" class="entete-logo"><img src="assets/logo.png" alt="B-Form@tik"></a>
-      <div class="entete-app"><span class="marque petite">B-ForCompt<span>@</span></span></div>
+      <a href="#/aujourdhui" class="entete-logo"><img src="assets/logo.png" alt="B-Form@tik"></a>
+      <div class="entete-app"><span class="marque petite">B-S<span>@</span>fe</span></div>
       <div class="entete-droite">
         <span id="badge-profil" class="badge-profil" hidden></span>
         <span id="utilisateur" class="utilisateur"></span>
@@ -41,6 +41,12 @@
     <div class="liseré" aria-hidden="true"></div>
     <div class="corps">
       <nav class="menu" id="menu">
+        <a href="#/aujourdhui" data-route="aujourdhui"><i>☀️</i>Aujourd'hui <b class="menu-badge" id="badge-alertes" hidden></b></a>
+        <a href="#/espaces" data-route="espaces"><i>🧭</i>Espaces de vie</a>
+        <a href="#/echeances" data-route="echeances"><i>📆</i>Factures à venir</a>
+        <a href="#/foyer" data-route="foyer"><i>🏡</i>Mon foyer</a>
+        <a href="#/cuisine" data-route="cuisine"><i>🍽️</i>Cuisine</a>
+        <a href="#/sport" data-route="sport"><i>🏃</i>Sport</a>
         <a href="#/tableau" data-route="tableau"><i>📊</i>Tableau de bord</a>
         <a href="#/operations" data-route="operations"><i>🧾</i>Dépenses &amp; recettes</a>
         <a href="#/monagenda" data-route="monagenda"><i>🗓️</i>Mon agenda</a>
@@ -59,7 +65,7 @@
         <a href="#/categories" data-route="categories"><i>🗂️</i>Catégories</a>
         <a href="#/images" data-route="images"><i>🖼️</i>Bibliothèque d'images</a>
         <a href="#/budgets" data-route="budgets" data-pro><i>🎯</i>Budgets</a>
-        <div class="menu-pied">B-ForCompt@ · created by <b>B-Form@tik</b></div>
+        <div class="menu-pied">B-S@fe · created by <b>B-Form@tik</b></div>
       </nav>
       <main id="vue" class="vue" tabindex="-1"></main>
     </div>
@@ -84,6 +90,8 @@
   <script src="js/ticket.js"></script>
   <script src="js/courses.js"></script>
   <script src="js/famille.js"></script>
+  <script src="js/assistant.js"></script>
+  <script src="js/vie.js"></script>
   <script src="js/config.js"></script>
   <script src="js/app.js"></script>
 </body>

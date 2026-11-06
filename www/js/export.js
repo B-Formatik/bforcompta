@@ -1,4 +1,4 @@
-/* B-ForCompt@ — exports PDF et CSV (web et application Android)
+/* B-S@fe — exports PDF et CSV (web et application Android)
    Web : téléchargement direct. Android : partage (Enregistrer dans Fichiers, Drive, e-mail, WhatsApp…). */
 (() => {
 'use strict';
@@ -108,7 +108,7 @@ async function pdfOperations(liste, ctx) {
   const L = await logo();
   doc.addImage(L.url, 'PNG', 14, 10, 55, 55 * L.ratio);
   doc.setTextColor(...MARINE); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
-  doc.text('B-ForCompt@ · Relevé des opérations', 196, 16, { align: 'right' });
+  doc.text('B-S@fe · Relevé des opérations', 196, 16, { align: 'right' });
   doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(80);
   doc.text(ctx.periode || '', 196, 22, { align: 'right' });
   const r = liste.filter(o => o.type === 'recette').reduce((a, o) => a + Number(o.montant), 0);
@@ -128,8 +128,8 @@ async function pdfOperations(liste, ctx) {
     didParseCell: (c) => { if (c.section === 'body' && c.column.index === 5) c.cell.styles.textColor = liste[c.row.index]?.type === 'recette' ? [21, 128, 61] : [198, 40, 40]; },
     margin: { left: 14, right: 14, bottom: 20 }
   });
-  piedDePage(doc, `B-ForCompt@ · created by B-Form@tik · édité le ${new Date().toLocaleDateString('fr-FR')}`);
-  await partagerFichier(`B-ForCompta_releve_${new Date().toLocaleDateString('fr-CA')}.pdf`, doc.output('blob'), 'Relevé B-ForCompt@');
+  piedDePage(doc, `B-S@fe · created by B-Form@tik · édité le ${new Date().toLocaleDateString('fr-FR')}`);
+  await partagerFichier(`B-Safe_releve_${new Date().toLocaleDateString('fr-CA')}.pdf`, doc.output('blob'), 'Relevé B-S@fe');
 }
 
 /* ---------- Liste de courses ---------- */
@@ -159,7 +159,7 @@ async function pdfListeCourses(l, lignes, ctx) {
   const tot = lignes.reduce((a, x) => a + Number(x.quantite || 0) * Number(x.prix_unitaire || 0), 0);
   doc.setFont('helvetica', 'bold'); doc.setTextColor(...ORANGE); doc.setFontSize(13);
   doc.text(`Total estimé : ${fmt(tot)}`, 196, doc.lastAutoTable.finalY + 9, { align: 'right' });
-  piedDePage(doc, 'B-ForCompt@ · created by B-Form@tik');
+  piedDePage(doc, 'B-S@fe · created by B-Form@tik');
   await partagerFichier(`Liste_courses_${l.date_prevue}.pdf`, doc.output('blob'), l.titre || 'Liste de courses');
 }
 
@@ -185,7 +185,7 @@ async function pdfPlanning(ctx) {
   });
   const n = doc.getNumberOfPages();
   for (let i = 1; i <= n; i++) { doc.setPage(i); doc.setFillColor(...BLEU); doc.rect(0, 199, 297, 11, 'F'); doc.setFillColor(...ORANGE); doc.rect(0, 198, 297, 1, 'F');
-    doc.setTextColor(255); doc.setFontSize(8); doc.text('B-ForCompt@ · created by B-Form@tik', 14, 205); doc.text(`Page ${i} / ${n}`, 283, 205, { align: 'right' }); }
+    doc.setTextColor(255); doc.setFontSize(8); doc.text('B-S@fe · created by B-Form@tik', 14, 205); doc.text(`Page ${i} / ${n}`, 283, 205, { align: 'right' }); }
   await partagerFichier(`Planning_taches_${ctx.jours[0]}.pdf`, doc.output('blob'), 'Planning des tâches');
 }
 
@@ -205,14 +205,14 @@ async function pdfTableau(titre, sousTitre, entetes, lignes, nomFichier, alignDr
   const colStyles = {}; alignDroite.forEach(i => { colStyles[i] = { halign: 'right' }; });
   doc.autoTable({ startY: 32, head: [entetes], body: lignes, headStyles: { fillColor: MARINE, textColor: 255 }, alternateRowStyles: { fillColor: [244, 249, 255] },
     styles: { fontSize: 9, cellPadding: 2.2 }, columnStyles: colStyles, margin: { left: 14, right: 14, bottom: 20 } });
-  piedDePage(doc, `B-ForCompt@ · created by B-Form@tik · édité le ${new Date().toLocaleDateString('fr-FR')}`);
+  piedDePage(doc, `B-S@fe · created by B-Form@tik · édité le ${new Date().toLocaleDateString('fr-FR')}`);
   await partagerFichier(nomFichier, doc.output('blob'), titre);
 }
 
 /* ---------- CSV (Excel) ---------- */
 async function csv(nom, entetes, lignes) {
   const contenu = [entetes, ...lignes].map(l => l.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(';')).join('\r\n');
-  await partagerFichier(nom, new Blob(['﻿' + contenu], { type: 'text/csv;charset=utf-8' }), 'Export B-ForCompt@');
+  await partagerFichier(nom, new Blob(['﻿' + contenu], { type: 'text/csv;charset=utf-8' }), 'Export B-S@fe');
 }
 
 window.BFC_EXPORT = { partagerFichier, pdfPiece, pdfOperations, pdfListeCourses, pdfPlanning, pdfTableau, csv };

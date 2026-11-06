@@ -1,4 +1,4 @@
-/* B-ForCompt@ — lecture automatique des tickets de caisse et factures (photo ou PDF)
+/* B-S@fe — lecture automatique des tickets de caisse et factures (photo ou PDF)
    PDF avec texte : lecture directe (pdf.js). Photo / PDF scanné : reconnaissance de caractères (Tesseract, français).
    Les bibliothèques ne sont chargées qu'au premier scan. Tout se passe dans l'appareil : le document n'est envoyé à aucun service tiers. */
 (() => {
@@ -68,6 +68,8 @@ function analyser(texte, magasinsConnus = []) {
   for (let i = 0; i < lignes.length; i++) {
     const l = lignes[i];
     if (EXCLUS.test(l)) continue;
+    const av = l.match(/^(\d+(?:[,.]\d+)?)\s*[xX*]\s*(\d+[,.]\d{2})\s*(?:€|EUR)?\s+([A-Za-zÀ-ÿ].{1,79})$/);   // « 2 x 1,25 YAOURTS »
+    if (av) { r.articles.push({ libelle: av[3].trim(), quantite: nombre(av[1]), prix_unitaire: Math.round(nombre(av[2]) * 100) / 100 }); continue; }
     const m = l.match(PRIX); if (!m) continue;
     let libelle = l.slice(0, m.index).replace(/[.\-_:*]+$/, '').trim();
     let quantite = 1, pu = nombre(m[1]);

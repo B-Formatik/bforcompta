@@ -1,4 +1,4 @@
-/* B-ForCompt@ — Banque & rapprochement
+/* B-S@fe — Banque & rapprochement
    Comptes reliés, import de relevés (CSV/OFX : Qonto, banques, PayPal, Stripe), boîtes mail liées,
    rapprochement automatique mouvements bancaires <-> opérations <-> e-mails de factures. */
 (window.BFC_MODULES = window.BFC_MODULES || []).push((A) => {

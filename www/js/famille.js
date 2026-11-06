@@ -1,4 +1,4 @@
-/* B-ForCompt@ — « Mes enfants » (planning des tâches ménagères) et « Mon agenda » (tâches classées par urgence, rappels) */
+/* B-S@fe — « Mes enfants » (planning des tâches ménagères) et « Mon agenda » (tâches classées par urgence, rappels) */
 (window.BFC_MODULES = window.BFC_MODULES || []).push((A) => {
 'use strict';
 const { sb, db, C, $, esc, fmtDate, auj, toast, verifier, action, val, ouvrirModale, fermerModale, confirmer, router, VUES, opts } = A;
@@ -286,7 +286,7 @@ VUES.monagenda = async (el) => {
 function envoyerRappel(t) {
   if (!t) return;
   const quand = t.echeance ? new Date(t.echeance).toLocaleString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', hour: '2-digit', minute: '2-digit' }) : '';
-  const texte = `🔔 Rappel B-ForCompt@ : ${t.titre}${quand ? '\n📅 ' + quand : ''}${t.details ? '\n' + t.details : ''}`;
+  const texte = `🔔 Rappel B-S@fe : ${t.titre}${quand ? '\n📅 ' + quand : ''}${t.details ? '\n' + t.details : ''}`;
   ouvrirModale('Envoyer le rappel', `<p><b>${esc(t.titre)}</b></p><div class="ligne"><div class="champ"><label>WhatsApp</label><input id="rp-tel" inputmode="tel" value="${esc(t.telephone || '')}" placeholder="0690…"></div>
     <div class="champ"><label>E-mail</label><input id="rp-mail" type="email" value="${esc(t.email || '')}"></div></div>
     <p class="aide">Le message s'ouvre prêt à envoyer dans WhatsApp ou dans votre messagerie. Les rappels envoyés automatiquement à l'heure prévue viendront avec le branchement de Brevo (e-mail) et de WhatsApp Business.</p>

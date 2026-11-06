@@ -1,4 +1,4 @@
-/* B-ForCompt@ — Courses : listes (faire maintenant / programmer), catalogue de produits avec photos,
+/* B-S@fe — Courses : listes (faire maintenant / programmer), catalogue de produits avec photos,
    lecture des tickets, impression, création automatique de la dépense. Synchronisation en direct entre appareils. */
 (window.BFC_MODULES = window.BFC_MODULES || []).push((A) => {
 'use strict';

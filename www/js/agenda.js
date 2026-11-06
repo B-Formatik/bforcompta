@@ -1,4 +1,4 @@
-/* B-ForCompt@ — Agenda des sorties et Messagerie (synthèse des boîtes mail + factures reçues) */
+/* B-S@fe — Agenda des sorties et Messagerie (synthèse des boîtes mail + factures reçues) */
 (window.BFC_MODULES = window.BFC_MODULES || []).push((A) => {
 'use strict';
 const { db, sb, C, R, $, esc, fmt, fmtDate, toast, verifier, action, val, num, uuid, nettoyerNom, ouvrirModale, fermerModale, confirmer, router, VUES, formOperation, compteParId, tiersParId, optsListe, opts } = A;
