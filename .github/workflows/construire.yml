@@ -1,4 +1,4 @@
-name: Construire B-ForCompt@
+name: Construire B-S@fe
 
 on:
   push:
@@ -34,8 +34,12 @@ jobs:
           npx cap add android
           npx capacitor-assets generate --android
           npx cap sync android
-          sed -i '/android.permission.INTERNET/a\    <uses-permission android:name="android.permission.CAMERA" />' android/app/src/main/AndroidManifest.xml
-          grep -c CAMERA android/app/src/main/AndroidManifest.xml
+          M=android/app/src/main/AndroidManifest.xml
+          for P in CAMERA ACCESS_COARSE_LOCATION ACCESS_FINE_LOCATION RECORD_AUDIO; do
+            sed -i "/android.permission.INTERNET/a\    <uses-permission android:name=\"android.permission.$P\" />" $M
+          done
+          sed -i 's#</manifest>#    <queries>\n        <intent><action android:name="android.speech.RecognitionService" /></intent>\n        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>\n    </queries>\n</manifest>#' $M
+          cat $M
       - name: Compiler l'APK
         working-directory: android
         run: |
@@ -47,8 +51,8 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v1.0.${{ github.run_number }}
-          name: B-ForCompt@ 1.0.${{ github.run_number }}
-          body: APK Android de B-ForCompt@ (B-Form@tik). Téléchargez B-ForCompta.apk sur le téléphone puis installez-le.
+          name: B-S@fe 1.0.${{ github.run_number }}
+          body: APK Android de B-S@fe (B-Form@tik). Téléchargez B-ForCompta.apk sur le téléphone puis installez-le.
           files: B-ForCompta.apk
           make_latest: true
 
