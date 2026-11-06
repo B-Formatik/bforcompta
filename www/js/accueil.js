@@ -85,7 +85,8 @@ VUES.aujourdhui = async (el) => {
   ];
   el.innerHTML = `<div class="tdb-tete"><div><h1>${salut} !</h1><div class="aide">${JOURS[new Date().getDay()]} ${new Date().getDate()} ${MOIS_LONG[new Date().getMonth()]}</div></div>
       <div class="tdb-actions"><button class="btn btn-bleu" id="tb-scan">📸 Ticket / facture</button><button class="btn btn-primaire" id="tb-dep">＋ Dépense</button>
-        <a class="btn btn-fantome" href="#/prix">🧮 Devis</a><button class="btn btn-fantome" id="tb-ecoute">🔊 Écouter</button></div></div>
+        <a class="btn btn-fantome" href="#/prix">🧮 Devis</a><a class="btn btn-fantome" href="#/donnees">⚙️ Mes données</a><button class="btn btn-fantome" id="tb-ecoute">🔊 Écouter</button></div></div>
+    ${!R.comptes.some(c => c.actif) || !(membres || []).length ? `<div class="demarrer">👋 <b>Pour commencer</b>, enregistrez ${!(membres || []).length ? 'votre foyer' : ''}${!(membres || []).length && !R.comptes.some(c => c.actif) ? ' et ' : ''}${!R.comptes.some(c => c.actif) ? 'vos comptes (banque, espèces, épargne)' : ''}. <a class="btn btn-petit btn-primaire" href="#/donnees">⚙️ Mes données →</a></div>` : ''}
     <div class="bulles">${bulles.join('')}</div>`;
   $('#tb-scan').onclick = () => A.scanner ? A.scanner() : toast('Scanner indisponible.', true);
   $('#tb-dep').onclick = () => formOperation({ type: 'depense' }, () => router());
@@ -112,4 +113,42 @@ VUES.meteo = async (el) => {
   $('#me-lieu').onclick = () => A.choisirLieu?.(() => router());
   if (A.carteMeteo) await A.carteMeteo($('#me-zone'));
 };
+
+/* ---------------------------------------------------------------- Mes données : par où commencer, où tout enregistrer */
+VUES.donnees = async (el) => {
+  const n = async (q) => { const r = await q; return r?.count ?? (Array.isArray(r?.data) ? r.data.length : 0); };
+  const tete = (t) => db.from(t).select('*', { count: 'exact', head: true });
+  const [membres, comptes, echeances, ops, docs, listes, sante] = await Promise.all([n(tete('membres_foyer').eq('actif', true)), Promise.resolve(R.comptes.filter(c => c.actif).length),
+    n(tete('echeances').eq('actif', true)), n(tete('operations')), n(tete('documents')), n(tete('listes_courses')), n(db.from('foyer_parametres').select('sante_demandee').eq('sante_demandee', true))]);
+  const etapes = [
+    ['foyer', '🏡', 'Mon foyer', 'Qui vit à la maison : vous, l\'autre parent, les enfants (âges, régimes, allergies).', membres, `${membres} personne(s)`, '#/foyer', 'Ouvrir'],
+    ['sante', '🩺', 'Santé du foyer', 'Les pathologies de chacun pour adapter repas, sport et conseils.', sante, sante ? 'Renseignée' : 'À faire', '#/foyer', 'Ouvrir'],
+    ['comptes', '🏦', 'Mes comptes', 'Chaque compte bancaire (perso, joint), la caisse espèces, l\'épargne, avec le solde du jour.', comptes, `${comptes} compte(s)`, null, '＋ Créer un compte'],
+    ['factures', '📆', 'Mes factures régulières', 'Électricité, eau, loyer, assurances, abonnements… et le salaire (rentrée d\'argent).', echeances, `${echeances} enregistrée(s)`, '#/echeances', 'Ouvrir'],
+    ['depenses', '🧾', 'Mes dépenses et recettes', 'Saisie à la main, ou photo d\'un ticket ou d\'une facture.', ops, `${ops} opération(s)`, '#/operations', 'Ouvrir'],
+    ['courses', '🛒', 'Courses', 'Listes de courses, produits, tickets de caisse.', listes, `${listes} liste(s)`, '#/courses', 'Ouvrir'],
+    ['documents', '📎', 'Documents', 'Factures, contrats, garanties, papiers… rangés par espace de vie.', docs, `${docs} document(s)`, '#/espaces', 'Ouvrir'],
+    ['epargne', '🐷', 'Épargne', 'Objectifs d\'épargne (fonds d\'urgence, vacances…).', null, '', '#/espace/epargne', 'Ouvrir'],
+    ['parametres', '🏷️', 'Magasins et catégories', 'Vos magasins, fournisseurs et catégories de dépenses.', null, '', '#/tiers', 'Ouvrir']
+  ];
+  const faites = etapes.filter(e => e[4]).length, aFaire = etapes.filter(e => e[4] === 0).length;
+  el.innerHTML = `<div class="tete-vue"><div><h1>⚙️ Mes données</h1><div class="aide">Tout ce que vous enregistrez ici est sauvegardé dans votre base B-S@fe.</div></div></div>
+    ${aFaire ? `<div class="alerte" style="margin-bottom:14px">👉 Pour bien démarrer : ${aFaire} étape(s) à compléter, dans l'ordre ci-dessous.</div>` : ''}
+    <div class="donnees">${etapes.map(([k, ic, t, d, v, etat, lien, bouton]) => `<div class="carte donnee ${v === 0 ? 'a-faire' : v ? 'faite' : ''}"><div class="b-ic">${ic}</div>
+      <div class="donnee-txt"><b>${t}</b> ${v === 0 ? '<span class="pastille orange">à faire</span>' : v ? `<span class="pastille rec">✓ ${etat}</span>` : ''}<div class="aide">${d}</div></div>
+      ${lien ? `<a class="btn ${v === 0 ? 'btn-primaire' : 'btn-fantome'}" href="${lien}">${bouton}</a>` : `<button class="btn ${v === 0 ? 'btn-primaire' : 'btn-fantome'}" data-act="${k}">${bouton}</button>`}</div>`).join('')}</div>`;
+  el.onclick = (e) => { const b = e.target.closest('[data-act]'); if (!b) return;
+    if (b.dataset.act === 'comptes') A.formCompte ? A.formCompte({ nature: 'personnel', type: 'banque' }, async () => { await A.chargerReferentiels(); router(); }) : (location.hash = '#/comptes'); };
+};
+
+/* ---------------------------------------------------------------- Bouton « retour au tableau de bord » sur toutes les pages */
+Object.keys(VUES).forEach(k => {
+  if (k === 'aujourdhui') return;
+  const vue = VUES[k];
+  VUES[k] = async (el, p) => {
+    await vue(el, p);
+    if (!el.querySelector(':scope > .retour')) el.insertAdjacentHTML('afterbegin', `<div class="retour"><a href="#/aujourdhui" class="btn btn-petit btn-fantome">🏠 Tableau de bord</a>${history.length > 1 ? '<button class="btn btn-petit btn-fantome" data-retour>← Retour</button>' : ''}</div>`);
+    const r = el.querySelector(':scope > .retour [data-retour]'); if (r) r.onclick = () => history.back();
+  };
+});
 });

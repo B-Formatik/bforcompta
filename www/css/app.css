@@ -401,3 +401,12 @@ ol.etapes { padding-left: 20px; } ol.etapes li { margin-bottom: 6px; }
   .tdb-tete h1 { font-size: 1.2rem; } .tdb-actions .btn { padding: 7px 10px; font-size: .85rem; } }
 @media (max-width: 820px) { .b-det2 { display: none; } .bulle { min-height: 96px; } #tb-ecoute, .tdb-actions a[href="#/prix"] { display: none; } }
 .depasse { border: 2px solid var(--orange); } .dv-choix { display: flex; gap: 8px; align-items: center; padding: 6px 0; border-bottom: 1px dashed var(--bord); margin: 0; font-weight: 600; }
+.retour { display: flex; gap: 8px; margin-bottom: 10px; }
+.demarrer { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; background: var(--orange-clair); border: 1px solid #ffd59e; border-radius: 14px; padding: 10px 14px; margin-bottom: 12px; }
+.donnees { display: grid; gap: 10px; max-width: 900px; }
+.donnee { display: flex; gap: 14px; align-items: center; padding: 14px 16px; }
+.donnee .b-ic { --c: var(--bleu); }
+.donnee-txt { flex: 1; min-width: 0; }
+.donnee.a-faire { border-left: 5px solid var(--orange); }
+.donnee.faite { border-left: 5px solid var(--vert); }
+@media (max-width: 600px) { .donnee { flex-wrap: wrap; } .donnee .btn { width: 100%; justify-content: center; } }

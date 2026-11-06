@@ -1088,6 +1088,7 @@ VUES.budgets = async (el) => {
 /* ---------------------------------------------------------------- démarrage */
 /* Modules complémentaires (banque & rapprochement…) */
 const API = { sb, db, pf, R, C, $, $$, esc, fmt, fmtDate, auj, opts, optsListe, toast, verifier, action, val, num, uuid, nettoyerNom,
+  formCompte, formCategorie, formTiers,
   televerserDocuments, ouvrirDocument, supprimerDocument, espaceParCode, TYPES_DOC, MOIS_LONG, detruireGraphiques, ajouterGraphique: (g) => graphiques.push(g),
   ouvrirModale, fermerModale, confirmer, router, VUES, formOperation, chargerReferentiels, chargerSoldes, vignette,
   compteParId, tiersParId, categorieParId, structureParCode, MOYENS, TYPES_COMPTE, NATURES };
