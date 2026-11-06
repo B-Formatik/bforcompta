@@ -331,3 +331,37 @@ ol.etapes { padding-left: 20px; } ol.etapes li { margin-bottom: 6px; }
 @media (max-width: 600px) { .menu-grille { grid-template-columns: minmax(0, 1fr); } .ligne-membre { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
 #cu-onglets, #sp-onglets { max-width: 100%; overflow-x: auto; flex-wrap: nowrap; } #cu-onglets button, #sp-onglets button { white-space: nowrap; flex: none; }
 .barre-outils { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pastille.sante { background: #fdecf3; color: #be185d; }
+.sante-bloc { background: #fdf4f8; border-color: #f5c2d9; margin: 12px 0; box-shadow: none; }
+.sante-bloc > div { margin: 3px 0; }
+.sante-membre { padding: 10px 0; border-top: 1px solid var(--bord); }
+.sante-membre .cases { margin: 6px 0; }
+
+/* ---------------------------------------------------------------- Météo & assistant vocal */
+.meteo-carte { border-top: 5px solid #0ea5e9; }
+.meteo-now { display: flex; gap: 12px; align-items: center; margin: 4px 0 10px; }
+.meteo-ic { font-size: 2.6rem; line-height: 1; }
+.meteo-t { font-size: 1.6rem; font-weight: 900; color: var(--marine); }
+.meteo-heures { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 4px; }
+.meteo-heures > div { flex: none; min-width: 52px; display: flex; flex-direction: column; align-items: center; gap: 1px; background: var(--bleu-clair); border-radius: 10px; padding: 5px 4px; font-size: .78rem; }
+.meteo-heures b { font-size: 1.2rem; }
+.meteo-heures .pluie { color: var(--bleu); font-weight: 900; }
+.alerte-ligne.niv-info { background: #f0f9ff; border-left-color: #0ea5e9; }
+.vx-flottant { position: fixed; right: 18px; bottom: 18px; z-index: 60; width: 58px; height: 58px; border-radius: 50%; border: 0; font-size: 1.6rem; cursor: pointer;
+  background: linear-gradient(135deg, var(--orange), #f97316); color: #fff; box-shadow: 0 10px 24px rgba(247,148,29,.45); }
+.vx-panneau { position: fixed; right: 18px; bottom: 88px; z-index: 61; width: min(400px, calc(100vw - 32px)); max-height: min(620px, calc(100vh - 110px)); display: flex; flex-direction: column;
+  background: var(--blanc); border-radius: 18px; box-shadow: 0 18px 50px rgba(17,49,110,.28); border: 1px solid var(--bord); overflow: hidden; }
+.vx-tete { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; background: linear-gradient(135deg, var(--bleu-fonce), var(--bleu)); color: #fff; }
+.vx-tete .btn-x { color: #fff; }
+.vx-regl { padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; border-bottom: 1px solid var(--bord); }
+.vx-regl .bascule button { padding: 6px 12px; font-size: .85rem; }
+.vx-fil { flex: 1; overflow-y: auto; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; min-height: 120px; }
+.vx-bulle { max-width: 88%; padding: 8px 12px; border-radius: 14px; font-size: .92rem; background: var(--bleu-clair); align-self: flex-start; }
+.vx-bulle.moi { align-self: flex-end; background: var(--orange-clair); }
+.vx-saisie { display: flex; gap: 6px; padding: 10px 14px; border-top: 1px solid var(--bord); }
+.vx-saisie input { flex: 1; }
+.vx-micro.ecoute { animation: vx-pulse 1s infinite; }
+@keyframes vx-pulse { 50% { box-shadow: 0 0 0 10px rgba(247,148,29,.25); } }
+.vx-raccourcis { display: flex; flex-wrap: wrap; gap: 6px; padding: 0 14px 12px; }
+@media print { .vx-flottant, .vx-panneau { display: none !important; } }
+.toasts { bottom: 92px !important; }

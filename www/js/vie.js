@@ -16,6 +16,50 @@ const doux = (res) => { if (res.error) { console.warn(res.error); return null; }
 const REGIMES = { vegetarien: '🥦 Végétarien', sans_porc: '🚫🐖 Sans porc', halal: '☪️ Halal', sans_gluten: '🌾 Sans gluten', sans_lactose: '🥛 Sans lactose' };
 const PROTEINES = { volaille: '🍗 Volaille', viande_rouge: '🥩 Viande rouge', porc: '🐖 Porc', poisson: '🐟 Poisson / fruits de mer', oeufs: '🥚 Œufs', vegetal: '🫘 Végétal' };
 const REPAS = { dejeuner: 'Déjeuner', diner: 'Dîner' };
+/* Pathologies : règles générales (repères de santé publique), elles ne remplacent pas l'avis du médecin.
+   eviter = recette écartée des menus du foyer · limiter = recette moins proposée · favoriser = recette mise en avant
+   maxIntens = intensité de sport conseillée au maximum (1 douce, 2 modérée, 3 intense) */
+const PATHOS = {
+  diabete: { lib: '🩸 Diabète', limiter: ['sucre', 'pain', 'pate a pizza', 'spaghetti', 'pate', 'semoule', 'plantain', 'patate douce', 'pomme de terre', 'farine'], favoriser: ['lentille', 'haricot', 'pois chiche', 'brocoli', 'epinard', 'salade', 'poisson', 'courgette'],
+    cuisine: 'Féculents en petite portion (de préférence complets), légumes à volonté, pas de boisson sucrée ; un fruit plutôt qu\'un dessert sucré.', sport: 'Activité régulière recommandée ; contrôlez la glycémie avant et après l\'effort et gardez un sucre sur vous.', maxIntens: 3 },
+  hypertension: { lib: '❤️ Hypertension', eviter: ['morue', 'jambon', 'saucisse', 'lardon'], limiter: ['fromage', 'mozzarella', 'thon'], favoriser: ['legume', 'brocoli', 'haricot vert', 'courgette', 'poisson', 'lentille'],
+    cuisine: 'Peu de sel : goûtez avant de saler, remplacez le sel par les herbes, le citron et les épices ; évitez charcuterie, morue salée et plats préparés.', sport: 'Endurance modérée (marche rapide, vélo, natation) ; évitez les efforts violents et le port de charges lourdes sans avis médical.', maxIntens: 2 },
+  cholesterol: { lib: '🫀 Cholestérol', eviter: ['saucisse', 'lardon'], limiter: ['jambon', 'fromage', 'beurre', 'creme', 'viande hach', 'mozzarella'], favoriser: ['poisson', 'saumon', 'lentille', 'pois chiche', 'haricot', 'brocoli'], friture: true,
+    cuisine: 'Moins de graisses animales (beurre, crème, charcuterie, fromage) et de friture ; poisson au moins 2 fois par semaine ; légumineuses.', sport: 'Activité d\'endurance régulière, 30 min par jour.', maxIntens: 3 },
+  coeliaque: { lib: '🌾 Maladie cœliaque', eviter: ['farine', 'pain', 'pate', 'spaghetti', 'semoule', 'pate bris', 'pate a pizza'], regime: 'sans_gluten',
+    cuisine: 'Aucun gluten (blé, orge, seigle) : vérifiez les étiquettes, même pour les épices et sauces.', sport: '', maxIntens: 3 },
+  renal: { lib: '🫘 Maladie des reins', eviter: ['morue', 'jambon', 'saucisse', 'lardon'], limiter: ['fromage', 'viande hach', 'lait'],
+    cuisine: 'Peu de sel et quantités de protéines selon votre néphrologue ; demandez-lui pour le potassium (bananes, légumes secs).', sport: 'Activité douce à modérée selon votre néphrologue.', maxIntens: 2 },
+  goutte: { lib: '🦶 Goutte', eviter: ['crevette', 'sardine'], limiter: ['viande hach', 'morue', 'thon'],
+    cuisine: 'Limitez viandes rouges, abats et fruits de mer ; pas d\'alcool ni de soda ; buvez beaucoup d\'eau.', sport: 'Activité douce, évitez l\'effort pendant une crise.', maxIntens: 2 },
+  surpoids: { lib: '⚖️ Surpoids', limiter: ['fromage', 'creme', 'beurre', 'mozzarella', 'pate a pizza'], favoriser: ['legume', 'salade', 'brocoli', 'courgette', 'poisson', 'lentille'], friture: true,
+    cuisine: 'Moitié de l\'assiette en légumes, féculents en portion raisonnable, moins de friture et de fromage.', sport: 'Commencez doucement : 30 min de marche par jour, puis augmentez progressivement.', maxIntens: 2 },
+  grossesse: { lib: '🤰 Grossesse', eviter: ['jambon', 'saucisse', 'lardon'], limiter: ['thon', 'saumon'],
+    cuisine: 'Viande et poisson bien cuits, œufs cuits durs, légumes bien lavés, pas de lait cru ni de charcuterie ; limitez le thon (mercure).', sport: 'Activité douce à modérée (marche, natation, gym douce) ; évitez les sports de contact et les chutes.', maxIntens: 2 },
+  asthme: { lib: '🌬️ Asthme', cuisine: '', sport: 'Échauffement progressif de 10 min, inhalateur à portée de main, évitez l\'effort au froid ou en cas de pollution.', maxIntens: 3 },
+  cardiaque: { lib: '💓 Maladie cardiaque', eviter: ['morue', 'jambon', 'saucisse', 'lardon'], limiter: ['fromage', 'beurre', 'creme'], favoriser: ['poisson', 'legume', 'lentille'], friture: true,
+    cuisine: 'Peu de sel, peu de graisses animales, poisson et légumes chaque jour.', sport: 'Effort modéré uniquement, selon l\'avis du cardiologue ; arrêtez en cas de douleur, malaise ou essoufflement inhabituel.', maxIntens: 2 },
+  articulations: { lib: '🦴 Dos / articulations', cuisine: '', sport: 'Privilégiez natation, vélo, marche, gym douce ; évitez les sports à impacts (course sur bitume, sauts).', maxIntens: 2, impacts: true },
+  drepanocytose: { lib: '🩸 Drépanocytose', favoriser: ['lentille', 'epinard', 'haricot', 'brocoli'],
+    cuisine: 'Buvez beaucoup d\'eau tout au long de la journée ; aliments riches en acide folique (légumes verts, légumineuses).', sport: 'Hydratez-vous avant, pendant et après ; évitez les efforts intenses, la chaleur extrême, le froid et la déshydratation.', maxIntens: 2 },
+  anemie: { lib: '🩸 Anémie', favoriser: ['lentille', 'epinard', 'haricot rouge', 'viande hach', 'oeuf'],
+    cuisine: 'Aliments riches en fer (légumineuses, viande, légumes verts) avec un agrume (citron) pour mieux l\'absorber ; évitez le thé au repas.', sport: 'Effort progressif, arrêtez en cas d\'essoufflement ou de vertige.', maxIntens: 2 }
+};
+const AVERT_SANTE = 'Conseils généraux qui ne remplacent pas l\'avis de votre médecin.';
+const pathosDe = (membres) => [...new Set(membres.flatMap(m => m.pathologies || []))].filter(k => PATHOS[k]);
+const contient = (r, mots) => (mots || []).filter(k => r.ingredients.some(i => radical(i.n).includes(radical(k)) || radical(i.k).includes(radical(k))));
+const estFrit = (r) => /\bfri(re|ture|t)\b|huile chaude/i.test(r.instructions || '');
+/* analyse santé d'une recette pour le foyer : écartée ? points (bonus/malus) ? remarques par personne */
+function santeRecette(r, membres) {
+  let exclue = false, points = 0; const notes = [];
+  membres.forEach(m => (m.pathologies || []).forEach(k => { const P = PATHOS[k]; if (!P) return;
+    const ev = contient(r, P.eviter), li = contient(r, P.limiter), fa = contient(r, P.favoriser);
+    if (ev.length) { exclue = true; notes.push(`⛔ ${m.prenom} (${P.lib.replace(/^\S+ /, '')}) : à éviter — ${ev.join(', ')}`); }
+    else if (li.length || (P.friture && estFrit(r))) { points -= 1.5; notes.push(`⚠️ ${m.prenom} (${P.lib.replace(/^\S+ /, '')}) : à limiter — ${[...li, ...(P.friture && estFrit(r) ? ['friture'] : [])].join(', ')}`); }
+    if (fa.length) { points += 0.6; notes.push(`✅ ${m.prenom} (${P.lib.replace(/^\S+ /, '')}) : recommandé — ${fa.slice(0, 3).join(', ')}`); }
+  }));
+  return { exclue, points, notes };
+}
 
 /* ================================================================ MON FOYER */
 async function chargerFoyer() {
@@ -37,12 +81,14 @@ function formMembre(m = {}, apres) {
       <div class="champ"><label>Objectif sport (min / semaine)</label><input name="objectif_sport_min" inputmode="numeric" value="${m.objectif_sport_min ?? ''}" placeholder="150 adulte · 420 enfant"></div></div>
     <div class="champ"><label>Régime alimentaire</label><div class="cases">${Object.entries(REGIMES).map(([k, l]) => `<label class="case"><input type="checkbox" name="regime" value="${k}" ${(m.regimes || []).includes(k) ? 'checked' : ''}> ${l}</label>`).join('')}</div></div>
     <div class="champ"><label>Allergies / aliments à éviter</label><input name="allergies" value="${esc((m.allergies || []).join(', '))}" placeholder="ex : arachide, crevette, lait"></div>
+    <div class="champ"><label>🩺 Santé (facultatif) — pour adapter les repas et le sport</label><div class="cases">${Object.entries(PATHOS).map(([k, P]) => `<label class="case"><input type="checkbox" name="patho" value="${k}" ${(m.pathologies || []).includes(k) ? 'checked' : ''}> ${P.lib}</label>`).join('')}</div>
+      <input name="sante_notes" value="${esc(m.sante_notes || '')}" placeholder="Autre, précisions (ex : pas d'effort intense, régime prescrit…)" style="margin-top:6px"><div class="aide">Visible uniquement par votre foyer. ${AVERT_SANTE}</div></div>
     <div class="modale-pied">${neuf ? '' : '<button type="button" class="btn btn-danger gauche" id="mb-suppr">Retirer</button>'}<button type="button" class="btn btn-fantome" data-fermer>Annuler</button><button class="btn btn-primaire">Enregistrer</button></div></form>`, (md) => {
     const f = $('#f-mb', md);
     $('#mb-role', md).onclick = (e) => { const b = e.target.closest('button'); if (!b) return; f.role.value = b.dataset.r; $$('#mb-role button', md).forEach(x => x.classList.toggle('on', x === b)); };
     f.onsubmit = (e) => { e.preventDefault(); action(f.querySelector('.btn-primaire'), async () => {
       const rec = { prenom: val(f, 'prenom'), role: f.role.value, date_naissance: val(f, 'date_naissance'), objectif_sport_min: num(f, 'objectif_sport_min'),
-        regimes: $$('input[name=regime]:checked', f).map(x => x.value), allergies: (val(f, 'allergies') || '').split(/[,;]/).map(s => s.trim()).filter(Boolean) };
+        regimes: $$('input[name=regime]:checked', f).map(x => x.value), pathologies: $$('input[name=patho]:checked', f).map(x => x.value), sante_notes: val(f, 'sante_notes'), allergies: (val(f, 'allergies') || '').split(/[,;]/).map(s => s.trim()).filter(Boolean) };
       verifier(neuf ? await db.from('membres_foyer').insert(rec) : await db.from('membres_foyer').update(rec).eq('id', m.id), 'Foyer');
       fermerModale(); toast('Enregistré.'); apres ? apres() : router();
     }); };
@@ -54,11 +100,11 @@ VUES.foyer = async (el) => {
   const F = await chargerFoyer();
   if (F.manque) { el.innerHTML = '<div class="carte"><h3>🛠️ Mise à jour de la base nécessaire</h3><p>Le module « Mon foyer » a besoin du script <b>08_foyer_cuisine_sport.sql</b>.</p></div>'; return; }
   const p = F.params || {};
-  el.innerHTML = `<div class="tete-vue"><h1>👨‍👩‍👧 Mon foyer</h1><div class="actions"><button class="btn btn-fantome" id="fo-import">⬇️ Importer mes enfants</button><button class="btn btn-primaire" id="fo-ajout">＋ Personne</button></div></div>
+  el.innerHTML = `<div class="tete-vue"><h1>👨‍👩‍👧 Mon foyer</h1><div class="actions"><button class="btn btn-fantome" id="fo-sante">🩺 Santé du foyer</button><button class="btn btn-fantome" id="fo-import">⬇️ Importer mes enfants</button><button class="btn btn-primaire" id="fo-ajout">＋ Personne</button></div></div>
     <div class="aj-grille"><div class="aj-col"><div class="carte"><h3>Qui vit à la maison <span class="aide">${resumeFoyer(F.membres)} · ${String(portionsFoyer(F.membres)).replace('.', ',')} portions par repas</span></h3>
       ${F.membres.map(m => `<div class="aj-item cliquable" data-id="${m.id}"><span class="pastille">${m.role === 'adulte' ? '🧑 Adulte' : '🧒 Enfant'}</span><b>${esc(m.prenom)}</b>
         <span class="aide">${age(m.date_naissance) != null ? age(m.date_naissance) + ' ans · ' : ''}part ${String(part(m)).replace('.', ',')}</span>
-        ${(m.regimes || []).map(r => `<span class="pastille orange">${REGIMES[r] || r}</span>`).join('')}${(m.allergies || []).length ? `<span class="pastille dep">⚠️ ${esc(m.allergies.join(', '))}</span>` : ''}</div>`).join('') || '<div class="vide">Personne pour l\'instant.</div>'}
+        ${(m.regimes || []).map(r => `<span class="pastille orange">${REGIMES[r] || r}</span>`).join('')}${(m.allergies || []).length ? `<span class="pastille dep">⚠️ ${esc(m.allergies.join(', '))}</span>` : ''}${(m.pathologies || []).map(k => `<span class="pastille sante">${PATHOS[k]?.lib || k}</span>`).join('')}</div>`).join('') || '<div class="vide">Personne pour l\'instant.</div>'}
       <p class="aide" style="margin-bottom:0">Les portions des recettes s'adaptent automatiquement : adulte = 1, enfant de 7 à 11 ans = 0,75, de 3 à 6 ans = 0,5…</p></div></div>
     <div class="aj-col"><div class="carte"><h3>Réglages</h3><form id="f-fp">
       <div class="champ"><label>Nom du foyer</label><input name="nom" value="${esc(p.nom || 'Mon foyer')}"></div>
@@ -66,6 +112,7 @@ VUES.foyer = async (el) => {
       <div class="champ"><label>Budget courses par semaine (€)</label><input name="budget" inputmode="decimal" value="${p.budget_courses_semaine ?? ''}"></div>
       <button class="btn btn-primaire">Enregistrer</button></form></div></div></div>`;
   $('#fo-ajout').onclick = () => formMembre({});
+  $('#fo-sante').onclick = () => demanderSante(F, true);
   el.onclick = (e) => { const r = e.target.closest('.aj-item[data-id]'); if (r) formMembre(F.membres.find(m => m.id === r.dataset.id)); };
   $('#fo-import').onclick = (e) => action(e.target, async () => {
     const enf = doux(await db.from('enfants').select('*').eq('actif', true)) || [];
@@ -80,11 +127,36 @@ VUES.foyer = async (el) => {
   }); };
 };
 
+/* Questionnaire santé (facultatif), une fois par foyer */
+async function demanderSante(F, force = false) {
+  if (!F.membres.length) return;
+  if (!force) { try { if (sessionStorage.getItem('bsafe-sante-plus-tard')) return; } catch {} if (F.params?.sante_demandee || F.membres.some(m => (m.pathologies || []).length)) return; }
+  if (!$('#modale').hidden) return;
+  ouvrirModale('🩺 Santé du foyer (facultatif)', `<p style="margin-top:0">Quelqu'un dans le foyer a-t-il un problème de santé à prendre en compte ? B-S@fe adaptera les <b>menus</b> (aliments à éviter ou à limiter), le <b>sport</b> (intensité conseillée) et les <b>conseils</b>.</p>
+    <p class="aide">Ces informations restent dans votre foyer. ${AVERT_SANTE}</p>
+    ${F.membres.map(m => `<div class="sante-membre"><b>${esc(m.prenom)}</b> <span class="aide">${m.role === 'enfant' ? 'enfant' : 'adulte'}</span>
+      <div class="cases">${Object.entries(PATHOS).filter(([k]) => m.role === 'adulte' || k !== 'grossesse').map(([k, P]) => `<label class="case"><input type="checkbox" data-m="${m.id}" value="${k}" ${(m.pathologies || []).includes(k) ? 'checked' : ''}> ${P.lib}</label>`).join('')}</div>
+      <input data-notes="${m.id}" value="${esc(m.sante_notes || '')}" placeholder="Autre / précisions (facultatif)"></div>`).join('')}
+    <div class="modale-pied"><button type="button" class="btn btn-fantome" id="sa-tard">Plus tard</button><button type="button" class="btn btn-fantome" id="sa-rien">Personne n'est concerné</button><button type="button" class="btn btn-primaire" id="sa-ok">Enregistrer</button></div>`, (md) => {
+    const fini = async () => { await db.from('foyer_parametres').upsert({ proprietaire: A.utilisateurId, sante_demandee: true, onboarding_fait: true }); fermerModale(); };
+    $('#sa-tard', md).onclick = () => { try { sessionStorage.setItem('bsafe-sante-plus-tard', '1'); } catch {} fermerModale(); };
+    $('#sa-rien', md).onclick = (e) => action(e.target, async () => { await fini(); toast('Noté. Vous pourrez compléter dans « Mon foyer ».'); });
+    $('#sa-ok', md).onclick = (e) => action(e.target, async () => {
+      for (const m of F.membres) {
+        const pathologies = $$(`input[data-m="${m.id}"]:checked`, md).map(x => x.value), sante_notes = $(`input[data-notes="${m.id}"]`, md).value.trim() || null;
+        verifier(await db.from('membres_foyer').update({ pathologies, sante_notes }).eq('id', m.id), 'Santé');
+      }
+      await fini(); toast('Santé enregistrée : menus et sport adaptés. 🩺'); if (/cuisine|sport|foyer/.test(location.hash)) router();
+    });
+  });
+}
+
 /* Accueil au premier lancement : composition du foyer */
 async function verifierAccueil() {
   try { if (sessionStorage.getItem('bsafe-accueil-plus-tard')) return; } catch {}
   if (!$('#modale').hidden) return;
-  const F = await chargerFoyer(); if (F.manque || F.params?.onboarding_fait || F.membres.length) return;
+  const F = await chargerFoyer(); if (F.manque) return;
+  if (F.params?.onboarding_fait || F.membres.length) return demanderSante(F);
   const enf = doux(await db.from('enfants').select('prenom, date_naissance, id').eq('actif', true)) || [];
   let lignes = [{ prenom: '', role: 'adulte' }, ...enf.map(x => ({ prenom: x.prenom, role: 'enfant', date_naissance: x.date_naissance, enfant_id: x.id }))];
   const rendre = () => lignes.map((l, i) => `<div class="ligne-membre"><input data-i="${i}" data-k="prenom" value="${esc(l.prenom)}" placeholder="Prénom">
@@ -104,6 +176,7 @@ async function verifierAccueil() {
       verifier(await db.from('membres_foyer').insert(ok.map(l => ({ prenom: l.prenom.trim(), role: l.role, date_naissance: l.date_naissance || null, enfant_id: l.enfant_id || null }))), 'Foyer');
       verifier(await db.from('foyer_parametres').upsert({ proprietaire: A.utilisateurId, repas: [$('#ac-dej', md).checked && 'dejeuner', $('#ac-din', md).checked && 'diner'].filter(Boolean), onboarding_fait: true }), 'Réglages');
       fermerModale(); toast(`Foyer enregistré : ${resumeFoyer(ok)} 🎉`);
+      setTimeout(async () => demanderSante(await chargerFoyer()), 400);
     });
   });
 }
@@ -123,7 +196,8 @@ async function chargerCuisine() {
 }
 /* recettes compatibles avec les régimes et allergies du foyer */
 function compatible(r, membres) {
-  const reg = new Set(membres.flatMap(m => m.regimes || []));
+  const reg = new Set(membres.flatMap(m => [...(m.regimes || []), ...(m.pathologies || []).map(k => PATHOS[k]?.regime).filter(Boolean)]));
+  if (santeRecette(r, membres).exclue) return false;
   if ((reg.has('sans_porc') || reg.has('halal')) && (r.proteine === 'porc' || r.ingredients.some(i => /jambon|lard|saucisse|porc/.test(norm(i.n))))) return false;
   if (membres.length && membres.every(m => (m.regimes || []).includes('vegetarien')) && !['oeufs', 'vegetal'].includes(r.proteine)) return false;
   if (reg.has('sans_gluten') && !r.tags.includes('sans_gluten')) return false;
@@ -160,7 +234,7 @@ function genererMenu(C, debut, repasListe) {
     const ordre = Object.keys(cible).filter(k => cible[k] > 0).sort((a, b) => (b !== prec) - (a !== prec) || cible[b] - cible[a] || Math.random() - .5);
     const g = ordre[0];
     const semaineChargee = c.repas === 'dejeuner' && jourSem(c.jour) <= 5;
-    const note = (r) => scoreRecette(r, C.placard) * 3 + (semaineChargee && r.temps_min <= 30 ? 1 : 0) + (r.tags.includes('enfants') && C.membres.some(m => m.role === 'enfant') ? 0.5 : 0) + Math.random() * 1.2;
+    const note = (r) => scoreRecette(r, C.placard) * 3 + santeRecette(r, C.membres).points + (semaineChargee && r.temps_min <= 30 ? 1 : 0) + (r.tags.includes('enfants') && C.membres.some(m => m.role === 'enfant') ? 0.5 : 0) + Math.random() * 1.2;
     let cand = pool.filter(r => groupe(r) === g && !choisis.includes(r));
     if (!cand.length) cand = pool.filter(r => !choisis.includes(r));
     if (!cand.length) cand = pool.slice();
@@ -195,6 +269,8 @@ function ouvrirRecette(C, r, portions = C.portions) {
     <p class="aide">Quantités calculées pour ${String(portions).replace('.', ',')} portions (${resumeFoyer(C.membres)}). ✓ = dans vos courses des 3 dernières semaines ou dans le placard.</p>
     <div class="tableau-wrap"><table><tbody>${ings.map(i => `<tr><td>${i.ok ? '✅' : '🛒'}</td><td><b>${esc(i.n)}</b></td><td class="montant">${fmtQ(i.qa, i.u)}</td></tr>`).join('')}</tbody></table></div>
     <h3 style="margin-top:14px">Préparation</h3><ol class="etapes">${(r.instructions || '').split('\n').filter(Boolean).map(s => `<li>${esc(s)}</li>`).join('')}</ol>
+    ${(() => { const S = santeRecette(r, C.membres), ps = pathosDe(C.membres).filter(k => PATHOS[k].cuisine);
+      return S.notes.length || ps.length ? `<div class="carte sante-bloc"><h3>🩺 Santé du foyer</h3>${S.notes.map(n => `<div>${esc(n)}</div>`).join('')}${ps.map(k => `<div class="aide"><b>${PATHOS[k].lib}</b> : ${esc(PATHOS[k].cuisine)}</div>`).join('')}<div class="aide"><i>${AVERT_SANTE}</i></div></div>` : ''; })()}
     <p class="aide">Pour un repas équilibré : un fruit ou un laitage en dessert, de l'eau à table.</p>
     <div class="modale-pied">${r.proprietaire ? '<button type="button" class="btn btn-fantome gauche" id="rc-mod">✏️ Modifier</button>' : ''}<button type="button" class="btn btn-fantome" id="rc-pdf">🖨 PDF</button>
       ${manque.length ? `<button type="button" class="btn btn-fantome" id="rc-courses">🛒 ${manque.length} manquant${manque.length > 1 ? 's' : ''} → courses</button>` : ''}
@@ -254,6 +330,7 @@ VUES.cuisine = async (el) => {
   const compat = C.recettes.filter(r => compatible(r, C.membres));
   el.innerHTML = `<div class="tete-vue"><div><h1>🍽️ Cuisine</h1><div class="aide">${resumeFoyer(C.membres)} · <b>${String(C.portions).replace('.', ',')} portions</b> par repas · <a href="#/foyer">modifier le foyer</a></div></div>
       <div class="actions"><button class="btn btn-fantome" id="cu-nouv">＋ Recette</button></div></div>
+    ${pathosDe(C.membres).length ? `<div class="alerte" style="margin-bottom:12px">🩺 Menus adaptés à : ${pathosDe(C.membres).map(k => PATHOS[k].lib).join(' · ')}. Les recettes déconseillées sont écartées, celles à limiter sont moins proposées. <i>${AVERT_SANTE}</i></div>` : ''}
     <div class="bascule" id="cu-onglets" style="margin-bottom:14px">${[['menu', '📅 Menu de la semaine'], ['idees', '💡 Avec mes courses'], ['recettes', '📖 Recettes'], ['placard', '🧺 Mes achats récents']].map(([k, l]) => `<button data-o="${k}" class="${cu.onglet === k ? 'on' : ''}">${l}</button>`).join('')}</div>
     <div id="cu-contenu"></div>`;
   const c = $('#cu-contenu');
@@ -339,6 +416,13 @@ function conseilsSport(S, debut) {
     else if (js >= 4 && eff < obj * 0.5) out.push(['bouger', `💪 ${m.prenom} : ${eff} min sur ${obj} cette semaine. Il reste ${obj - eff} min : ${m.role === 'enfant' ? 'jeux dehors, vélo, piscine…' : '2 ou 3 marches rapides de 30 min suffisent.'}`]);
     else if (eff >= obj) out.push(['bravo', `🏅 ${m.prenom} : objectif de la semaine atteint (${eff} / ${obj} min).`]);
   });
+  S.membres.forEach(m => (m.pathologies || []).forEach(k => { const P = PATHOS[k]; if (!P?.sport) return;
+    out.push(['sante', `🩺 ${m.prenom} (${P.lib.replace(/^\S+ /, '')}) : ${P.sport}`]);
+    const trop = S.seances.filter(s => s.membre_id === m.id && s.jour > plusJours(today, -14) && s.intensite > P.maxIntens);
+    const actTrop = S.activites.filter(a => (a.membre_id === m.id) && a.intensite > P.maxIntens);
+    if (trop.length || actTrop.length) out.push(['vigilance', `⚠️ ${m.prenom} : ${trop.length ? trop.length + ' séance(s) intense(s) récente(s)' : 'activité « ' + actTrop[0].nom + ' » réglée en intense'} — avec ${P.lib.replace(/^\S+ /, '').toLowerCase()}, mieux vaut rester en intensité ${P.maxIntens === 1 ? 'douce' : 'modérée'} sauf avis médical.`]);
+    if (P.impacts) { const imp = S.activites.filter(a => a.membre_id === m.id && /course|running|foot|basket|hand|tennis|saut|crossfit/i.test(a.nom)); if (imp.length) out.push(['vigilance', `⚠️ ${m.prenom} : « ${imp[0].nom} » comporte des impacts ; natation, vélo ou marche ménagent davantage le dos et les articulations.`]); }
+  }));
   S.activites.filter(a => a.licence_fin && a.licence_fin <= plusJours(today, 30)).forEach(a => out.push(['licence', `📑 ${a.nom} : licence / abonnement à renouveler avant le ${fmtDate(a.licence_fin)}.`]));
   return out;
 }
@@ -410,7 +494,8 @@ VUES.sport = async (el) => {
           return `<div class="objectif"><div class="aj-item" style="border:0;padding:0"><b>${esc(m.prenom)}</b><span class="aide">${sem.length} séance${sem.length > 1 ? 's' : ''}</span><span style="margin-left:auto;font-weight:800">${eff} / ${obj} min</span></div>
             <div class="barre sport"><span style="width:${Math.min(100, Math.round(eff / obj * 100))}%"></span></div></div>`; }).join('') || '<div class="vide">Aucun membre.</div>'}
         <p class="aide" style="margin-bottom:0">Repères : 150 min d'activité modérée par semaine pour un adulte, 60 min par jour pour un enfant. Une minute intense compte double.</p></div>
-        <div class="carte"><h3>💡 Conseils</h3>${conseils.map(([t, m]) => `<div class="alerte-ligne ${t === 'repos' ? 'niv-attention' : t === 'licence' ? 'niv-urgent' : ''}"><div>${esc(m)}</div></div>`).join('') || '<div class="vide">Enregistrez vos séances pour recevoir des conseils.</div>'}</div></div>
+        <div class="carte"><h3>💡 Conseils</h3>${conseils.map(([t, m]) => `<div class="alerte-ligne ${t === 'repos' || t === 'vigilance' ? 'niv-attention' : t === 'licence' ? 'niv-urgent' : ''}"><div>${esc(m)}</div></div>`).join('') || '<div class="vide">Enregistrez vos séances pour recevoir des conseils.</div>'}
+          ${conseils.some(([t]) => t === 'sante' || t === 'vigilance') ? `<div class="aide"><i>${AVERT_SANTE}</i></div>` : ''}</div></div>
       <div class="aj-col"><div class="carte"><h3>📅 Aujourd'hui</h3>${prevus.map(a => `<div class="aj-item"><span class="pastille">${a.heure ? a.heure.slice(0, 5) : '—'}</span><b>${esc(a.icone || '')} ${esc(a.nom)}</b><span class="aide">${esc(S.membres.find(m => m.id === a.membre_id)?.prenom || 'famille')} · ${a.duree_min} min</span>
           <button class="btn btn-petit btn-primaire" data-fait-act="${a.id}" style="margin-left:auto">✓ Fait</button></div>`).join('') || '<div class="vide">Pas d\'activité prévue aujourd\'hui.</div>'}</div>
         <div class="carte"><h3>📝 Dernières séances</h3>${S.seances.slice(0, 8).map(s => `<div class="aj-item"><span class="pastille">${fmtDate(s.jour).slice(0, 5)}</span><b>${esc(s.libelle || '')}</b><span class="aide">${esc(S.membres.find(m => m.id === s.membre_id)?.prenom || '')} · ${s.duree_min} min · ${INTENS[s.intensite]}</span></div>`).join('') || '<div class="vide">Aucune séance.</div>'}</div></div></div>`;
