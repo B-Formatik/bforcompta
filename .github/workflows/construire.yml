@@ -40,6 +40,11 @@ jobs:
           done
           sed -i 's#</manifest>#    <queries>\n        <intent><action android:name="android.speech.RecognitionService" /></intent>\n        <intent><action android:name="android.intent.action.TTS_SERVICE" /></intent>\n    </queries>\n</manifest>#' $M
           cat $M
+      - name: Clé de signature fixe (mises à jour sans désinstaller)
+        env:
+          CLE: ${{ secrets.ANDROID_DEBUG_KEYSTORE }}
+        run: |
+          if [ -n "$CLE" ]; then mkdir -p ~/.android && echo "$CLE" | base64 -d > ~/.android/debug.keystore && echo "Clé fixe utilisée"; else echo "Pas de clé fixe : clé temporaire"; fi
       - name: Compiler l'APK
         working-directory: android
         run: |
