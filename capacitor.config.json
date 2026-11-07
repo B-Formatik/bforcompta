@@ -3,5 +3,9 @@
   "appName": "B-S@fe",
   "webDir": "www",
   "android": { "allowMixedContent": false },
-  "server": { "androidScheme": "https" }
+  "server": {
+    "androidScheme": "https",
+    "url": "https://b-formatik.github.io/bforcompta/",
+    "errorPath": "hors-ligne.html"
+  }
 }
