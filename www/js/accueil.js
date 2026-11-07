@@ -141,6 +141,31 @@ VUES.donnees = async (el) => {
     if (b.dataset.act === 'comptes') A.formCompte ? A.formCompte({ nature: 'personnel', type: 'banque' }, async () => { await A.chargerReferentiels(); router(); }) : (location.hash = '#/comptes'); };
 };
 
+/* ---------------------------------------------------------------- Utilisateurs (administrateurs) : voir et débloquer les comptes */
+VUES.utilisateurs = async (el) => {
+  const [r, rv] = await Promise.all([db.rpc('admin_utilisateurs'), db.rpc('admin_visages')]);
+  if (r.error) { el.innerHTML = `<div class="carte"><h3>👥 Utilisateurs</h3><p>${/Réservé/.test(r.error.message) ? 'Page réservée aux administrateurs.' : esc(r.error.message)}</p></div>`; return; }
+  const V = new Map((rv.data || []).map(v => [v.user_id, v]));
+  const ETATS = { en_attente: ['⏳ Jamais connecté (code non validé)', 'orange'], sans_acces: ['🚫 Sans accès', 'dep'], jamais_connecte: ['✅ Confirmé · jamais connecté', ''], actif: ['✅ Actif', 'rec'] };
+  const visage = (v) => !v ? '<span class="aide">—</span>'
+    : v.bloque ? `<span class="pastille dep">🔒 ${v.motif === 'nouvel_appareil' ? 'Nouvel appareil' : '3 échecs'}</span>`
+    : v.reenregistrement ? '<span class="pastille orange">📷 Nouveau visage autorisé</span>'
+    : v.enregistre ? `<span class="pastille rec">🙂 Enregistré</span>${v.echecs ? ` <span class="aide">${v.echecs} échec(s)</span>` : ''}` : '<span class="aide">Pas encore</span>';
+  const l = r.data || [], bloques = [...V.values()].filter(v => v.bloque).length;
+  el.innerHTML = `<div class="tete-vue"><div><h1>👥 Utilisateurs</h1><div class="aide">${l.length} compte(s)${bloques ? ` · <b style="color:var(--rouge)">${bloques} bloqué(s)</b>` : ''}</div></div></div>
+    <div class="carte"><div class="tableau-wrap"><table><thead><tr><th>Compte</th><th>État</th><th>Visage</th><th class="masquer-mobile">Dernière connexion</th><th class="masquer-mobile">Accès</th><th></th></tr></thead><tbody>
+    ${l.map(u => { const v = V.get(u.id); return `<tr><td><b>${esc(u.email)}</b>${u.nom && u.nom !== u.email ? `<div class="aide">${esc(u.nom)}</div>` : ''}</td><td><span class="pastille ${ETATS[u.etat]?.[1] || ''}">${ETATS[u.etat]?.[0] || u.etat}</span></td>
+      <td>${visage(v)}</td><td class="masquer-mobile">${u.derniere_connexion ? fmtDate(u.derniere_connexion.slice(0, 10)) : '—'}</td><td class="masquer-mobile aide">${esc(u.acces || '—')}</td>
+      <td>${v?.bloque && v.motif !== 'nouvel_appareil' ? `<button class="btn btn-petit btn-primaire" data-visage="debloquer" data-u="${u.id}">🔓 Débloquer</button> ` : ''}
+        ${v?.bloque || v?.enregistre ? `<button class="btn btn-petit btn-fantome" data-visage="reenregistrer" data-u="${u.id}">📷 Nouveau visage</button> ` : ''}
+        ${u.etat === 'sans_acces' ? `<button class="btn btn-petit btn-primaire" data-conf="${u.id}">🔓 Donner l'accès</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>
+    <p class="aide" style="margin-bottom:0">Vérifiez toujours auprès de la personne avant de débloquer. « 🔓 Débloquer » remet les essais à zéro (visage inchangé). « 📷 Nouveau visage » débloque et lui fait réenregistrer son visage à la prochaine connexion (nouveau téléphone, appli réinstallée, visage mal enregistré).</p></div>`;
+  el.onclick = (e) => {
+    const b = e.target.closest('[data-visage]'); if (b) return action(b, async () => { verifier(await db.rpc('admin_visage', { p_user: b.dataset.u, p_action: b.dataset.visage }), 'Déblocage'); toast(b.dataset.visage === 'debloquer' ? 'Compte débloqué.' : 'Compte débloqué : la personne réenregistrera son visage à la prochaine connexion.'); router(); });
+    const cf = e.target.closest('[data-conf]'); if (cf) return action(cf, async () => { verifier(await db.rpc('admin_confirmer', { p_user: cf.dataset.conf }), 'Accès'); toast('Accès donné.'); router(); });
+  };
+};
+
 /* ---------------------------------------------------------------- Bouton « retour au tableau de bord » sur toutes les pages */
 Object.keys(VUES).forEach(k => {
   if (k === 'aujourdhui') return;

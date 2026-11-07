@@ -5,7 +5,7 @@
 (() => {
 'use strict';
 const C = window.BFC_CONFIG;
-const sb = window.supabase.createClient(C.url, C.cle, { auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true } });
+const sb = window.supabase.createClient(C.url, C.cle, { auth: { persistSession: true, storage: window.sessionStorage, autoRefreshToken: true, detectSessionInUrl: false } });
 const db = sb.schema(C.structure);
 const pf = sb.schema('plateforme');
 
@@ -132,99 +132,137 @@ function brancherChoixImage(racine) {
 }
 
 /* ---------------------------------------------------------------- authentification */
-function vueAuth(mode = 'connexion', message = '', emailPrerempli = '') {
+/* Connexion sans mot de passe fixe : 1) code temporaire envoyé par e-mail (valable 5 min), 2) reconnaissance du visage.
+   1re connexion : le visage est enregistré sur l'appareil. Ensuite : code + visage à chaque connexion.
+   3 échecs du visage ou nouvel appareil = compte bloqué, seul un administrateur débloque. */
+function traduireAuth(m = '') {
+  if (/expired|invalid.*(otp|token)|Token has expired/i.test(m)) return 'Code incorrect ou expiré. Demandez un nouveau code.';
+  if (/Signups not allowed/i.test(m)) return 'Les inscriptions sont fermées pour le moment.';
+  if (/rate limit|too many|For security purposes/i.test(m)) return 'Un code vient déjà d\'être envoyé : patientez une minute avant d\'en redemander un.';
+  if (/invalid.*email|Unable to validate email|email address.*invalid/i.test(m)) return 'Adresse e-mail invalide : vérifiez l\'orthographe.';
+  if (/Error sending|SMTP|smtp/i.test(m)) return 'L\'e-mail n\'a pas pu être envoyé pour le moment. Réessayez dans quelques minutes.';
+  if (/Failed to fetch|NetworkError|network/i.test(m)) return 'Pas de connexion Internet.';
+  return m;
+}
+const DUREE_CODE = 5 * 60;           // secondes : à garder égal au réglage Supabase « Email OTP Expiration » (300)
+const ESSAIS_VISAGE = 3;
+let minuteurCode = null;
+const visageValide = (uid) => sessionStorage.getItem('bsafe-visage-ok') === uid;
+async function envoyerCode(email, nom) {
+  const { error } = await sb.auth.signInWithOtp({ email, options: { shouldCreateUser: true, data: nom ? { app: C.structure, nom_complet: nom } : { app: C.structure } } });
+  if (error) throw new Error(traduireAuth(error.message));
+  localStorage.setItem('bsafe-dernier-email', email);
+  return Date.now();
+}
+function vueAuth(mode = 'connexion', message = '', email = '', extra = {}) {
+  clearInterval(minuteurCode);
   $('#ecran-app').hidden = true; $('#ecran-auth').hidden = false;
   const c = $('#auth-contenu');
-  const msg = message ? `<div class="alerte" style="margin-bottom:12px">${esc(message)}</div>` : '';
+  const msg = message ? `<div class="alerte" style="margin-bottom:12px">${message}</div>` : '';
+  const deco = `<p style="text-align:center;margin:14px 0 0"><button type="button" class="lien" id="l-deco">Changer d'adresse / se déconnecter</button></p>`;
+  const brancherDeco = () => { const b = $('#l-deco'); if (b) b.onclick = async () => { sessionStorage.removeItem('bsafe-visage-ok'); await sb.auth.signOut(); vueAuth('connexion'); }; };
   if (mode === 'connexion') {
+    const dernier = email || localStorage.getItem('bsafe-dernier-email') || '';
     c.innerHTML = `${msg}<form id="f-auth">
-      <div class="champ"><label>Adresse e-mail</label><input name="email" type="email" autocomplete="username" required></div>
-      <div class="champ"><label>Mot de passe</label><input name="mdp" type="password" autocomplete="current-password" required></div>
-      <button class="btn btn-primaire" style="width:100%;justify-content:center">Se connecter</button>
-      <p style="text-align:center;margin:14px 0 0"><button type="button" class="lien" id="l-oubli">Mot de passe oublié ?</button> · <button type="button" class="lien" id="l-creer">Créer un compte</button></p>
+      <p>Saisissez votre adresse e-mail (Gmail, Hotmail, Outlook, Orange, iCloud… toutes acceptées). Vous recevrez un <b>code temporaire valable 5 minutes</b>.</p>
+      <div class="champ"><label>Adresse e-mail</label><input name="email" type="email" autocomplete="email" required value="${esc(dernier)}"></div>
+      <div class="champ"><label>Nom et prénom <span class="aide">(seulement pour une première connexion)</span></label><input name="nom" autocomplete="name"></div>
+      <button class="btn btn-primaire" style="width:100%;justify-content:center">✉️ Recevoir mon code</button>
+      <p class="aide" style="margin-top:12px">🔒 Après le code, B-S@fe vérifie votre visage. À la toute première connexion, votre visage est enregistré <b>uniquement sur ce téléphone</b>.</p>
     </form>`;
     $('#f-auth').onsubmit = (e) => { e.preventDefault(); const f = e.target; action(f.querySelector('button'), async () => {
-      const { error } = await sb.auth.signInWithPassword({ email: f.email.value.trim(), password: f.mdp.value });
-      if (error) throw new Error(error.message === 'Invalid login credentials' ? 'E-mail ou mot de passe incorrect.' : error.message);
+      const em = f.email.value.trim().toLowerCase();
+      const envoye = await envoyerCode(em, f.nom.value.trim());
+      vueAuth('code', '', em, { envoye });
     }); };
-    $('#l-oubli').onclick = () => vueAuth('oubli');
-    $('#l-creer').onclick = () => vueAuth('creer');
-  } else if (mode === 'creer') {
-    c.innerHTML = `${msg}<form id="f-auth">
-      <p>Créez votre accès personnel à B-S@fe (comptes personnels et comptes joints).</p>
-      <div class="champ"><label>Nom et prénom</label><input name="nom" required autocomplete="name"></div>
-      <div class="champ"><label>Adresse e-mail</label><input name="email" type="email" required autocomplete="username"></div>
-      <div class="champ"><label>Mot de passe (8 caractères minimum)</label><input name="mdp" type="password" minlength="8" required autocomplete="new-password"></div>
-      <button class="btn btn-primaire" style="width:100%;justify-content:center">Créer mon compte</button>
-      <p style="text-align:center;margin:14px 0 0"><button type="button" class="lien" id="l-retour">Retour à la connexion</button></p>
-    </form>`;
-    $('#f-auth').onsubmit = (e) => { e.preventDefault(); const f = e.target; action(f.querySelector('button'), async () => {
-      const { data, error } = await sb.auth.signUp({ email: f.email.value.trim(), password: f.mdp.value,
-        options: { data: { app: C.structure, nom_complet: f.nom.value.trim() }, emailRedirectTo: window.Capacitor ? C.urlWeb : location.origin + location.pathname } });
-      if (error) throw new Error(/already/i.test(error.message) ? 'Un compte existe déjà avec cette adresse : utilisez « Mot de passe oublié ».' : error.message);
-      if (!data.session) vueAuth('connexion', 'Compte créé. Confirmez votre adresse avec le lien reçu par e-mail, puis connectez-vous.');
-    }); };
-    $('#l-retour').onclick = () => vueAuth('connexion');
-  } else if (mode === 'oubli') {
-    c.innerHTML = `${msg}<form id="f-auth">
-      <p>Saisissez votre adresse : vous recevrez un e-mail pour choisir un nouveau mot de passe.</p>
-      <div class="champ"><label>Adresse e-mail</label><input name="email" type="email" required></div>
-      <button class="btn btn-primaire" style="width:100%;justify-content:center">Recevoir l'e-mail</button>
-      <p style="text-align:center;margin:14px 0 0"><button type="button" class="lien" id="l-code">J'ai déjà un code</button> · <button type="button" class="lien" id="l-retour">Retour</button></p>
-    </form>`;
-    $('#f-auth').onsubmit = (e) => { e.preventDefault(); const f = e.target; action(f.querySelector('button'), async () => {
-      const email = f.email.value.trim();
-      const options = { redirectTo: window.Capacitor ? C.urlWeb : location.origin + location.pathname };
-      const { error } = await sb.auth.resetPasswordForEmail(email, options);
-      if (error) throw new Error(/rate limit/i.test(error.message) ? 'Trop de demandes : patientez quelques minutes avant de redemander un code.' : error.message);
-      if (window.Capacitor) vueAuth('connexion', 'E-mail envoyé (pensez aux spams). Ouvrez le lien : il vous amène sur la version web de B-S@fe pour choisir votre mot de passe. Revenez ensuite vous connecter ici.');
-      else vueAuth('connexion', 'E-mail envoyé (pensez aux spams). Ouvrez le lien depuis cet appareil pour choisir votre mot de passe.');
-    }); };
-    $('#l-code').onclick = () => vueAuth('code', '', $('#f-auth').email.value.trim());
-    $('#l-retour').onclick = () => vueAuth('connexion');
   } else if (mode === 'code') {
+    const envoye = extra.envoye || Date.now();
     c.innerHTML = `${msg}<form id="f-auth">
-      <p>Si l'e-mail reçu contient un code, saisissez-le ici avec votre nouveau mot de passe.</p>
-      <div class="champ"><label>Adresse e-mail</label><input name="email" type="email" required value="${esc(emailPrerempli)}"></div>
-      <div class="champ"><label>Code reçu par e-mail</label><input name="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="10" placeholder="123456"></div>
-      <div class="champ"><label>Nouveau mot de passe</label><input name="mdp" type="password" minlength="8" autocomplete="new-password" required></div>
-      <button class="btn btn-primaire" style="width:100%;justify-content:center">Valider</button>
-      <p style="text-align:center;margin:14px 0 0"><button type="button" class="lien" id="l-retour">Retour à la connexion</button></p>
+      <p>Code envoyé à <b>${esc(email)}</b>. Rien reçu ? Regardez dans <b>Courrier indésirable / Spam</b>.</p>
+      <div class="champ"><label>Code temporaire</label><input name="code" inputmode="numeric" autocomplete="one-time-code" required maxlength="10" placeholder="123456" style="font-size:22px;letter-spacing:4px;text-align:center"></div>
+      <p id="minuteur" class="aide" style="text-align:center"></p>
+      <button class="btn btn-primaire" id="b-valider" style="width:100%;justify-content:center">Valider le code</button>
+      <p style="text-align:center;margin:14px 0 0"><button type="button" class="lien" id="l-renvoi" disabled>Redemander un code</button> · <button type="button" class="lien" id="l-retour">Autre adresse</button></p>
     </form>`;
-    $('#f-auth').onsubmit = (e) => { e.preventDefault(); const f = e.target; action(f.querySelector('button'), async () => {
-      enRecuperation = true;
-      const v = await sb.auth.verifyOtp({ email: f.email.value.trim(), token: f.code.value.trim(), type: 'recovery' });
-      if (v.error) { enRecuperation = false; throw new Error('Code invalide ou expiré. Redemandez un code.'); }
-      const u = await sb.auth.updateUser({ password: f.mdp.value });
-      enRecuperation = false;
-      if (u.error) throw u.error;
-      toast('Mot de passe enregistré. Bienvenue !');
+    const tic = () => {
+      const reste = DUREE_CODE - Math.floor((Date.now() - envoye) / 1000);
+      const z = $('#minuteur'); if (!z) return clearInterval(minuteurCode);
+      $('#l-renvoi').disabled = Date.now() - envoye < 60000;
+      if (reste <= 0) {
+        z.innerHTML = '<b style="color:#c0392b">⏱️ Code expiré.</b> Demandez un nouveau code.';
+        $('#b-valider').disabled = true; $('#l-renvoi').disabled = false; clearInterval(minuteurCode);
+      } else z.textContent = `⏱️ Code valable encore ${Math.floor(reste / 60)} min ${String(reste % 60).padStart(2, '0')} s`;
+    };
+    tic(); minuteurCode = setInterval(tic, 1000);
+    $('#f-auth').onsubmit = (e) => { e.preventDefault(); const f = e.target; action($('#b-valider'), async () => {
+      const { error } = await sb.auth.verifyOtp({ email, token: f.code.value.replace(/\s/g, ''), type: 'email' });
+      if (error) throw new Error(traduireAuth(error.message));
+      clearInterval(minuteurCode);
       demarrerApp();
     }); };
-    $('#l-retour').onclick = () => vueAuth('connexion');
-  } else if (mode === 'nouveau-mdp') {
-    c.innerHTML = `${msg}<form id="f-auth">
-      <p>Choisissez votre nouveau mot de passe (8 caractères minimum).</p>
-      <div class="champ"><label>Nouveau mot de passe</label><input name="mdp" type="password" minlength="8" autocomplete="new-password" required></div>
-      <div class="champ"><label>Confirmation</label><input name="mdp2" type="password" minlength="8" autocomplete="new-password" required></div>
-      <button class="btn btn-primaire" style="width:100%;justify-content:center">Enregistrer</button>
-    </form>`;
-    $('#f-auth').onsubmit = (e) => { e.preventDefault(); const f = e.target; action(f.querySelector('button'), async () => {
-      if (f.mdp.value !== f.mdp2.value) throw new Error('Les deux mots de passe ne sont pas identiques.');
-      const { error } = await sb.auth.updateUser({ password: f.mdp.value });
-      if (error) throw error;
-      toast('Mot de passe enregistré.');
-      history.replaceState(null, '', location.pathname + '#/tableau');
+    $('#l-renvoi').onclick = (e) => action(e.target, async () => { const t = await envoyerCode(email); vueAuth('code', 'Nouveau code envoyé. L\'ancien ne fonctionne plus.', email, { envoye: t }); });
+    $('#l-retour').onclick = () => vueAuth('connexion', '', email);
+  } else if (mode === 'visage-enregistrer') {
+    c.innerHTML = `${msg}<h3 style="margin-top:0">📷 Enregistrement de votre visage</h3>
+      <p>Pour sécuriser vos prochaines connexions, B-S@fe va enregistrer votre visage.</p>
+      <ul class="aide"><li>L'empreinte du visage reste <b>uniquement sur ce téléphone</b> : elle n'est jamais envoyée sur Internet.</li>
+      <li>À chaque connexion : code par e-mail, puis visage.</li>
+      <li>⚠️ <b>Après 3 échecs</b> de reconnaissance, ou si vous vous connectez depuis <b>un autre téléphone</b>, votre compte sera <b>bloqué</b> et seul un administrateur pourra le débloquer.</li></ul>
+      <label style="display:flex;gap:8px;align-items:flex-start;margin:12px 0"><input type="checkbox" id="c-accord"> J'accepte l'enregistrement de mon visage sur cet appareil pour me connecter à B-S@fe.</label>
+      <div id="zone-visage"></div><p id="consigne" style="text-align:center;font-weight:bold"></p>
+      <button class="btn btn-primaire" id="b-visage" style="width:100%;justify-content:center">Enregistrer mon visage</button>${deco}`;
+    brancherDeco();
+    $('#b-visage').onclick = (e) => action(e.target, async () => {
+      if (!$('#c-accord').checked) throw new Error('Cochez la case d\'accord pour continuer.');
+      const uid = extra.uid;
+      await window.BSAFE_VISAGE.enregistrer(uid, $('#zone-visage'), (t) => { $('#consigne').innerHTML = t; });
+      const { error } = await db.rpc('visage_enregistre');
+      if (error) { window.BSAFE_VISAGE.oublier(uid); throw new Error(error.message); }
+      sessionStorage.setItem('bsafe-visage-ok', uid);
+      toast('Visage enregistré. Bienvenue sur B-S@fe !');
       demarrerApp();
-    }); };
+    });
+  } else if (mode === 'visage-verifier') {
+    const restant = extra.restant ?? ESSAIS_VISAGE;
+    const avert = restant <= 1
+      ? `<div class="alerte" style="background:#fdecea;border-color:#c0392b;color:#8e1b10;margin-bottom:12px">⚠️ <b>Dernier essai.</b> Si votre visage n'est pas reconnu, votre compte sera <b>bloqué</b> et seul un administrateur pourra le débloquer. Placez-vous face à une bonne lumière avant de commencer.</div>`
+      : `<p class="aide">⚠️ ${restant} essai(s) restant(s). Après 3 échecs, le compte est bloqué et seul un administrateur peut le débloquer.</p>`;
+    c.innerHTML = `${msg}<h3 style="margin-top:0">🙂 Vérification du visage</h3>${avert}
+      <div id="zone-visage"></div><p id="consigne" style="text-align:center;font-weight:bold"></p>
+      <button class="btn btn-primaire" id="b-visage" style="width:100%;justify-content:center">Vérifier mon visage</button>${deco}`;
+    brancherDeco();
+    $('#b-visage').onclick = (e) => action(e.target, async () => {
+      const uid = extra.uid;
+      const r = await window.BSAFE_VISAGE.verifier(uid, $('#zone-visage'), (t) => { $('#consigne').innerHTML = t; });
+      const { data: etat, error } = await db.rpc('visage_resultat', { p_ok: r.ok });
+      if (error) throw new Error(error.message);
+      if (r.ok) { sessionStorage.setItem('bsafe-visage-ok', uid); return demarrerApp(); }
+      if (etat.bloque) return vueAuth('bloque', '', '', { motif: 'echecs' });
+      vueAuth('visage-verifier', `❌ Visage non reconnu. Il vous reste <b>${etat.restant} essai(s)</b> avant le blocage du compte.`, '', { uid, restant: etat.restant });
+    });
+  } else if (mode === 'nouvel-appareil') {
+    c.innerHTML = `<h3 style="margin-top:0">📱 Nouvel appareil</h3>
+      <p>Votre visage a été enregistré sur un autre téléphone (ou l'application a été réinstallée) : cet appareil ne le connaît pas.</p>
+      <div class="alerte" style="margin-bottom:12px">Pour votre sécurité, l'accès depuis un nouvel appareil doit être <b>autorisé par un administrateur</b>. En continuant, votre compte sera <b>mis en attente</b> et l'administrateur sera prévenu. Une fois autorisé, vous enregistrerez votre visage sur ce téléphone.</div>
+      <button class="btn btn-primaire" id="b-demande" style="width:100%;justify-content:center">Demander l'autorisation</button>${deco}`;
+    brancherDeco();
+    $('#b-demande').onclick = (e) => action(e.target, async () => { const { error } = await db.rpc('visage_nouvel_appareil'); if (error) throw error; vueAuth('bloque', '', '', { motif: 'nouvel_appareil' }); });
+  } else if (mode === 'bloque') {
+    const pourquoi = extra.motif === 'nouvel_appareil'
+      ? 'Votre demande d\'accès depuis un nouvel appareil est <b>en attente d\'autorisation</b>.'
+      : 'Votre compte est <b>bloqué</b> après 3 échecs de reconnaissance du visage.';
+    c.innerHTML = `<div class="alerte" style="background:#fdecea;border-color:#c0392b;color:#8e1b10">🔒 ${pourquoi}</div>
+      <p>Un administrateur B-Form@tik a été <b>prévenu automatiquement</b>. Il vérifiera qu'il s'agit bien de vous puis débloquera votre compte.</p>
+      <p>Pour accélérer : écrivez à <b>contact@b-formatik.fr</b> en indiquant votre adresse e-mail de connexion.</p>
+      <p class="aide">Une fois débloqué, reconnectez-vous normalement (code par e-mail puis visage).</p>${deco}`;
+    brancherDeco();
   } else if (mode === 'refus') {
-    c.innerHTML = `<div class="alerte">Votre compte n'a pas encore accès à B-S@fe.<br>Un administrateur B-Form@tik doit vous l'ouvrir (structure « bforcompta »).</div>
-      <p style="margin-top:14px"><button class="btn btn-fantome" id="l-deco">Se déconnecter</button></p>`;
-    $('#l-deco').onclick = () => sb.auth.signOut();
+    c.innerHTML = `<div class="alerte">Votre compte n'a pas encore accès à B-S@fe.<br>Un administrateur B-Form@tik doit vous l'ouvrir.</div>${deco}`;
+    brancherDeco();
   }
 }
 
-let appDemarree = false, enRecuperation = false;
+let appDemarree = false;
 /* Type de compte affiché en haut : Administrateur, Super utilisateur, Utilisateur, Lecture seule */
 const PROFILS = {
   admin: { lib: 'Administrateur', icone: '👑', cls: 'admin' },
@@ -251,24 +289,34 @@ async function afficherProfil(user) {
 async function demarrerApp() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { appDemarree = false; return vueAuth('connexion'); }
-  if (enRecuperation) return vueAuth('nouveau-mdp');
-  const { data: ok, error } = await db.rpc('peut_utiliser');
+  const uid = session.user.id;
+  // 1. sécurité visage (avant tout accès aux données)
+  if (!visageValide(uid)) {
+    appDemarree = false;
+    const { data: etat, error: ev } = await db.rpc('etat_visage');
+    if (ev) return vueAuth('connexion', 'Erreur de vérification : ' + esc(ev.message));
+    if (etat.bloque) return vueAuth('bloque', '', '', { motif: etat.motif });
+    if (!etat.enregistre || etat.reenregistrement) { window.BSAFE_VISAGE.preparer().catch(() => {}); return vueAuth('visage-enregistrer', '', '', { uid }); }
+    if (!window.BSAFE_VISAGE.enregistree(uid)) return vueAuth('nouvel-appareil');
+    window.BSAFE_VISAGE.preparer().catch(() => {});
+    return vueAuth('visage-verifier', '', '', { uid, restant: etat.restant });
+  }
+  // 2. accès à l'application
+  let { data: ok, error } = await db.rpc('peut_utiliser');
+  if (!error && !ok) { await db.rpc('rejoindre_bsafe'); ({ data: ok, error } = await db.rpc('peut_utiliser')); }   // tout compte connecté obtient son accès B-S@fe
   if (error || !ok) { appDemarree = false; return vueAuth('refus'); }
   $('#ecran-auth').hidden = true; $('#ecran-app').hidden = false;
   $('#utilisateur').textContent = session.user.email;
-  API.utilisateurId = session.user.id;
+  API.utilisateurId = uid;
   await afficherProfil(session.user);
   try { await chargerReferentiels(); } catch (e) { toast(e.message, true); }
   appDemarree = true;
   router();
 }
 sb.auth.onAuthStateChange((evt) => {
-  if (evt === 'PASSWORD_RECOVERY') { enRecuperation = true; vueAuth('nouveau-mdp'); return; }
-  if (evt === 'USER_UPDATED') enRecuperation = false;
-  if (evt === 'SIGNED_OUT') { appDemarree = false; vueAuth('connexion'); }
-  if (evt === 'SIGNED_IN' && !appDemarree && !enRecuperation) setTimeout(demarrerApp, 0);
+  if (evt === 'SIGNED_OUT') { appDemarree = false; sessionStorage.removeItem('bsafe-visage-ok'); vueAuth('connexion'); }
 });
-$('#btn-deconnexion').onclick = () => sb.auth.signOut();
+$('#btn-deconnexion').onclick = () => { sessionStorage.removeItem('bsafe-visage-ok'); sb.auth.signOut(); };
 $('#btn-menu').onclick = () => $('#menu').classList.toggle('ouvert');
 $('#menu').addEventListener('click', e => { if (e.target.closest('a')) $('#menu').classList.remove('ouvert'); });
 
@@ -1094,6 +1142,6 @@ const API = { sb, db, pf, R, C, $, $$, esc, fmt, fmtDate, auj, opts, optsListe, 
   compteParId, tiersParId, categorieParId, structureParCode, MOYENS, TYPES_COMPTE, NATURES };
 (window.BFC_MODULES || []).forEach(m => m(API));
 
-if (/type=recovery/.test(location.hash)) enRecuperation = true;
+
 demarrerApp();
 })();
