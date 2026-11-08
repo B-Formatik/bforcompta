@@ -82,6 +82,8 @@ VUES.aujourdhui = async (el) => {
       val: `${minMoi} min`, det: `sur ${objMoi} cette semaine${moi ? ' · ' + esc(moi.prenom) : ''}`, det2: `<span class="b-barre"><span style="width:${Math.min(100, minMoi / objMoi * 100)}%"></span></span>` }),
     bulle({ lien: '#/espace/epargne', ic: '🐷', titre: 'Épargne', couleur: '#ca8a04',
       val: court(epargne), det: obj ? `${esc(obj.nom)} : ${Math.round(objAct / obj.montant_cible * 100)} %` : 'Fixer un objectif', det2: obj ? `<span class="b-barre"><span style="width:${Math.min(100, objAct / obj.montant_cible * 100)}%"></span></span>` : '' })
+,
+    bulle({ lien: '#/coffre', ic: '🔐', titre: 'Coffre-fort', couleur: '#334155', val: '3 sécurités', det: 'code e-mail · visage · phrase secrète' })
   ];
   el.innerHTML = `<div class="tdb-tete"><div><h1>${salut} !</h1><div class="aide">${JOURS[new Date().getDay()]} ${new Date().getDate()} ${MOIS_LONG[new Date().getMonth()]}</div></div>
       <div class="tdb-actions"><button class="btn btn-bleu" id="tb-scan">📸 Ticket / facture</button><button class="btn btn-primaire" id="tb-dep">＋ Dépense</button>
@@ -143,7 +145,8 @@ VUES.donnees = async (el) => {
 
 /* ---------------------------------------------------------------- Utilisateurs (administrateurs) : voir et débloquer les comptes */
 VUES.utilisateurs = async (el) => {
-  const [r, rv] = await Promise.all([db.rpc('admin_utilisateurs'), db.rpc('admin_visages')]);
+  const [r, rv, rc] = await Promise.all([db.rpc('admin_utilisateurs'), db.rpc('admin_visages'), db.rpc('admin_coffres')]);
+  const CF = new Map((rc.data || []).map(c => [c.user_id, c]));
   if (r.error) { el.innerHTML = `<div class="carte"><h3>👥 Utilisateurs</h3><p>${/Réservé/.test(r.error.message) ? 'Page réservée aux administrateurs.' : esc(r.error.message)}</p></div>`; return; }
   const V = new Map((rv.data || []).map(v => [v.user_id, v]));
   const ETATS = { en_attente: ['⏳ Jamais connecté (code non validé)', 'orange'], sans_acces: ['🚫 Sans accès', 'dep'], jamais_connecte: ['✅ Confirmé · jamais connecté', ''], actif: ['✅ Actif', 'rec'] };
@@ -158,10 +161,12 @@ VUES.utilisateurs = async (el) => {
       <td>${visage(v)}</td><td class="masquer-mobile">${u.derniere_connexion ? fmtDate(u.derniere_connexion.slice(0, 10)) : '—'}</td><td class="masquer-mobile aide">${esc(u.acces || '—')}</td>
       <td>${v?.bloque && v.motif !== 'nouvel_appareil' ? `<button class="btn btn-petit btn-primaire" data-visage="debloquer" data-u="${u.id}">🔓 Débloquer</button> ` : ''}
         ${v?.bloque || v?.enregistre ? `<button class="btn btn-petit btn-fantome" data-visage="reenregistrer" data-u="${u.id}">📷 Nouveau visage</button> ` : ''}
+        ${CF.get(u.id)?.bloque ? `<button class="btn btn-petit btn-primaire" data-coffre="${u.id}">🔐 Débloquer le coffre</button> ` : ''}
         ${u.etat === 'sans_acces' ? `<button class="btn btn-petit btn-primaire" data-conf="${u.id}">🔓 Donner l'accès</button>` : ''}</td></tr>`; }).join('')}</tbody></table></div>
     <p class="aide" style="margin-bottom:0">Vérifiez toujours auprès de la personne avant de débloquer. « 🔓 Débloquer » remet les essais à zéro (visage inchangé). « 📷 Nouveau visage » débloque et lui fait réenregistrer son visage à la prochaine connexion (nouveau téléphone, appli réinstallée, visage mal enregistré).</p></div>`;
   el.onclick = (e) => {
     const b = e.target.closest('[data-visage]'); if (b) return action(b, async () => { verifier(await db.rpc('admin_visage', { p_user: b.dataset.u, p_action: b.dataset.visage }), 'Déblocage'); toast(b.dataset.visage === 'debloquer' ? 'Compte débloqué.' : 'Compte débloqué : la personne réenregistrera son visage à la prochaine connexion.'); router(); });
+    const co = e.target.closest('[data-coffre]'); if (co) return action(co, async () => { verifier(await db.rpc('admin_coffre_debloquer', { p_user: co.dataset.coffre }), 'Coffre'); toast('Coffre débloqué (son contenu reste illisible pour vous).'); router(); });
     const cf = e.target.closest('[data-conf]'); if (cf) return action(cf, async () => { verifier(await db.rpc('admin_confirmer', { p_user: cf.dataset.conf }), 'Accès'); toast('Accès donné.'); router(); });
   };
 };

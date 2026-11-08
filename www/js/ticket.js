@@ -63,7 +63,7 @@ const SEUIL_NETTETE = 30;
 function verifierPhoto(q) {
   if (Math.max(q.largeur, q.hauteur) < 700) throw new PhotoRefusee('Photo trop petite : prenez le ticket en photo de plus près, en pleine résolution.');
   if (q.luminosite < 45) throw new PhotoRefusee('Photo trop sombre : allumez la lumière ou utilisez le flash, puis reprenez la photo.');
-  if (q.luminosite > 248 && q.nettete < SEUIL_NETTETE * 3) throw new PhotoRefusee('Photo trop claire (reflet) : évitez la lumière directe sur le ticket et reprenez la photo.');
+  if (q.luminosite > 235) throw new PhotoRefusee('Photo trop claire (reflet) : évitez la lumière directe sur le ticket et reprenez la photo.');
   if (q.nettete < SEUIL_NETTETE) throw new PhotoRefusee('Photo floue : le texte n\'est pas assez net pour être lu de façon fiable. Posez le ticket à plat, tenez le téléphone immobile, laissez la mise au point se faire, puis reprenez la photo.');
 }
 /* Noir et blanc adaptatif (seuil local par image intégrale) : gère les ombres et le papier froissé */

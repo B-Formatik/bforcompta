@@ -332,6 +332,16 @@ sb.auth.onAuthStateChange((evt) => {
   if (evt === 'SIGNED_OUT') { appDemarree = false; sessionStorage.removeItem('bsafe-visage-ok'); vueAuth('connexion'); }
 });
 $('#btn-deconnexion').onclick = () => { sessionStorage.removeItem('bsafe-visage-ok'); sb.auth.signOut(); };
+/* Appli laissée en arrière-plan plus de 5 minutes = nouvelle connexion complète (code e-mail puis visage) */
+let cacheeLe = 0;
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) { cacheeLe = Date.now(); return; }
+  if (cacheeLe && Date.now() - cacheeLe > 5 * 60 * 1000 && sessionStorage.getItem('bsafe-visage-ok')) {
+    sessionStorage.removeItem('bsafe-visage-ok'); appDemarree = false; sb.auth.signOut();
+    toast('🔒 Par sécurité, reconnectez-vous : code par e-mail puis visage.');
+  }
+  cacheeLe = 0;
+});
 $('#btn-menu').onclick = () => $('#menu').classList.toggle('ouvert');
 $('#menu').addEventListener('click', e => { if (e.target.closest('a')) $('#menu').classList.remove('ouvert'); });
 
