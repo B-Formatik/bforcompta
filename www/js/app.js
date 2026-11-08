@@ -32,7 +32,22 @@ const opts = (obj, sel) => Object.entries(obj).map(([k, v]) => `<option value="$
 const optsListe = (liste, sel, vide = '—', lib = x => x.nom) => `<option value="">${esc(vide)}</option>` + liste.map(x => `<option value="${x.id ?? x.code}" ${(x.id ?? x.code) === sel ? 'selected' : ''}>${esc(lib(x))}</option>`).join('');
 const nettoyerNom = (n) => n.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '-').slice(-80);
 const uuid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
-const val = (form, nom) => { const v = form.elements[nom]?.value?.trim(); return v === '' ? null : v; };
+const val = (form, nom) => { let v = form.elements[nom]?.value?.trim(); if (v === '' || v == null) return null;
+  const d = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/.exec(v); if (d) v = `${d[3]}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}`;   // date saisie à la main (jj/mm/aaaa)
+  return v; };
+/* Dates de naissance : saisie directe au clavier « jj/mm/aaaa » au lieu de faire défiler le calendrier jusqu'en 1979 */
+function dateManuelle(i) {
+  if (i.dataset.manuelle) return; i.dataset.manuelle = '1';
+  const iso = i.value; i.type = 'text'; i.inputMode = 'numeric'; i.placeholder = 'jj/mm/aaaa'; i.maxLength = 10; i.autocomplete = 'off';
+  if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) i.value = iso.split('-').reverse().join('/');
+  i.pattern = '\\d{2}/\\d{2}/\\d{4}'; i.title = 'Format jj/mm/aaaa, par exemple 14/03/1979';
+  i.addEventListener('input', (e) => { if (e.inputType && e.inputType.startsWith('delete')) return;
+    const c = i.value.replace(/\D/g, '').slice(0, 8); i.value = c.length > 4 ? `${c.slice(0, 2)}/${c.slice(2, 4)}/${c.slice(4)}` : c.length > 2 ? `${c.slice(0, 2)}/${c.slice(2)}` : c; });
+  i.addEventListener('change', () => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(i.value); if (!i.value) return i.setCustomValidity('');
+    const d = m && new Date(+m[3], +m[2] - 1, +m[1]); const ok = d && d.getDate() === +m[1] && d.getMonth() === +m[2] - 1 && +m[3] >= 1900 && d <= new Date();
+    i.setCustomValidity(ok ? '' : 'Date invalide (jj/mm/aaaa)'); if (!ok) i.reportValidity(); });
+}
+new MutationObserver(() => document.querySelectorAll('input[type=date][name*=naissance], input[type=date][data-k*=naissance]').forEach(dateManuelle)).observe(document.documentElement, { childList: true, subtree: true });
 const num = (form, nom) => { const v = val(form, nom); return v === null ? null : Number(String(v).replace(',', '.')); };
 
 function toast(msg, erreur = false) {

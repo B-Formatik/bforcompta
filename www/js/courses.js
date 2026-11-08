@@ -216,7 +216,7 @@ async function ouvrirListe(id) {
       $('#li-q', m).onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); $('#li-ajout', m).click(); } };
       $('#li-catalogue', m).onclick = () => choisirProduits(m, async (choix) => { for (const p of choix) await ajouterArticle(p.nom, p); });
       $('#li-nv-mag', m).onclick = (e) => { e.preventDefault(); const nom = prompt('Nom du magasin (ex : Carrefour Destreland)'); if (!nom) return;
-        action(null, async () => { const t = verifier(await db.from('tiers').insert({ nom: nom.trim(), type: 'fournisseur', categorie_defaut_id: R.categories.find(c => /courses/i.test(c.nom))?.id }).select().single());
+        action(null, async () => { const t = { id: await A.magasinId(nom, R.categories.find(c => /courses/i.test(c.nom))?.id), nom: nom.trim() };
           await A.chargerReferentiels(); f.magasin_id.insertAdjacentHTML('beforeend', `<option value="${t.id}" selected>${esc(t.nom)}</option>`); f.magasin_id.value = t.id; }); };
       const enteteDonnees = () => ({ titre: val(f, 'titre') || 'Courses', statut: val(f, 'statut'), date_prevue: val(f, 'date_prevue'), heure_prevue: val(f, 'heure_prevue'), magasin_id: val(f, 'magasin_id'),
         moyen_paiement: val(f, 'moyen_paiement'), compte_id: val(f, 'compte_id'), lieu_paiement: val(f, 'lieu_paiement'), notes: val(f, 'notes') });
@@ -334,7 +334,7 @@ function scannerTicket(cible) {
     $('#tk-moyen', fond).onchange = (e) => { if (e.target.value === 'especes') $('#tk-compte', fond).value = compteParDefaut('especes') || ''; };
     $('#tk-ok', fond).onclick = (e) => action(e.currentTarget, async () => {
       let magasin_id = $('#tk-mag', fond).value || null;
-      if (!magasin_id && r.magasin) { magasin_id = verifier(await db.from('tiers').insert({ nom: r.magasin.slice(0, 60), type: 'fournisseur', categorie_defaut_id: R.categories.find(c => /courses/i.test(c.nom))?.id }).select().single()).id; await A.chargerReferentiels(); }
+      if (!magasin_id && r.magasin) magasin_id = await A.magasinId(r.magasin, R.categories.find(c => /courses/i.test(c.nom))?.id);
       const res = { ...r, magasin_id, date: $('#tk-date', fond).value, heure: $('#tk-heure', fond).value || null, moyen: $('#tk-moyen', fond).value, total: Number(String($('#tk-total', fond).value).replace(',', '.')) || null };
       fond.remove();
       if (cible) return cible.appliquer(res);

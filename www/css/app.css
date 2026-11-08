@@ -415,3 +415,21 @@ ol.etapes { padding-left: 20px; } ol.etapes li { margin-bottom: 6px; }
 .visage-cadre { position: relative; width: 240px; height: 300px; margin: 8px auto; border-radius: 50% / 45%; overflow: hidden; border: 4px solid #f7941d; background: #000; transition: border-color .3s; }
 .visage-cadre.ok { border-color: #1e9e5a; }
 .visage-cadre video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+
+/* Scan de ticket : vérifications et lignes d'articles */
+.verif { border: 1px solid var(--bordure, #dbe5f3); border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; background: #f8fafc; }
+.verif-tete { font-weight: bold; margin-bottom: 6px; }
+.verif-tete.ok { color: #1e7e4a; } .verif-tete.ko { color: #b45309; }
+.verif-l { font-size: .9rem; padding: 2px 0; } .verif-l.ko { color: #b45309; font-weight: 600; }
+.sc-art-tete { margin-top: 10px; }
+.sc-lignes { display: flex; flex-direction: column; gap: 6px; max-height: 320px; overflow: auto; margin-top: 6px; }
+.sc-ligne { display: grid; grid-template-columns: 1fr 64px 84px 72px 40px; gap: 6px; align-items: end; padding: 6px; border: 1px solid #e2e8f0; border-radius: 10px; background: #fff; }
+.sc-ligne label { font-size: .7rem; color: #64748b; display: flex; flex-direction: column; margin: 0; }
+.sc-ligne input { min-width: 0; }
+.sc-tot { font-weight: bold; text-align: right; padding-bottom: 8px; white-space: nowrap; }
+.sc-suppr { border: 0; background: #fdecea; border-radius: 8px; font-size: 1.15rem; height: 38px; cursor: pointer; }
+@media (max-width: 600px) {
+  .sc-ligne { grid-template-columns: 1fr 1fr 1fr 40px; }
+  .sc-ligne .sc-lib { grid-column: 1 / -1; }
+  .sc-tot { grid-column: 3; }
+}

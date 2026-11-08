@@ -190,7 +190,7 @@ async function verifierAccueil() {
     <div class="champ" style="margin-top:12px"><label>Repas à planifier</label><div class="cases"><label class="case"><input type="checkbox" id="ac-pdj" checked> Petit-déjeuner</label><label class="case"><input type="checkbox" id="ac-dej"> Déjeuner</label><label class="case"><input type="checkbox" id="ac-gou"> Goûter (enfants)</label><label class="case"><input type="checkbox" id="ac-din" checked> Dîner</label></div></div>
     <div class="modale-pied"><button type="button" class="btn btn-fantome" id="ac-tard">Plus tard</button><button type="button" class="btn btn-primaire" id="ac-ok">C'est parti</button></div>`, (md) => {
     const zone = $('#ac-lignes', md);
-    zone.oninput = zone.onchange = (e) => { const i = e.target.dataset.i; if (i != null) lignes[i][e.target.dataset.k] = e.target.value; };
+    zone.oninput = zone.onchange = (e) => { const i = e.target.dataset.i; if (i == null) return; let v = e.target.value; const d = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(v); if (d) v = `${d[3]}-${d[2]}-${d[1]}`; else if (e.target.dataset.k === 'date_naissance' && v && !/^\d{4}-/.test(v)) v = ''; lignes[i][e.target.dataset.k] = v; };
     zone.onclick = (e) => { const b = e.target.closest('[data-retirer]'); if (b) { lignes.splice(+b.dataset.retirer, 1); zone.innerHTML = rendre(); } };
     $('#ac-plus', md).onclick = () => { lignes.push({ prenom: '', role: 'enfant' }); zone.innerHTML = rendre(); };
     $('#ac-tard', md).onclick = () => { try { sessionStorage.setItem('bsafe-accueil-plus-tard', '1'); } catch {} fermerModale(); };

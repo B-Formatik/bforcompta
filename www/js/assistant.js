@@ -503,7 +503,7 @@ const TYPES_SCAN = { ticket: '🧾 Ticket de caisse', facture: '📄 Facture', d
 
 function scanner(espaceDefaut) {
   ouvrirModale('📸 Ticket, facture ou devis', `<div id="sc-zone">
-    <p class="aide" style="margin-top:0">Photographiez le document bien à plat et lisible (ou choisissez une photo / un PDF). L'appli lit le magasin, la date, les articles et le total dans votre téléphone ; vous vérifiez avant d'enregistrer.</p>
+    <p class="aide" style="margin-top:0">Posez le ticket <b>à plat, en entier</b>, bien éclairé, et tenez le téléphone immobile. L'appli lit le magasin, la date, les articles et le total, <b>vérifie que tout concorde</b> (total, paiement, somme des articles) ; vous n'avez plus qu'à valider. Une photo floue est refusée.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
       <label class="btn btn-primaire" style="margin:0">📷 Prendre la photo<input type="file" id="sc-photo" accept="image/*" capture="environment" hidden></label>
       <label class="btn btn-fantome" style="margin:0">📁 Choisir une photo ou un PDF<input type="file" id="sc-fichier" accept="image/*,application/pdf" hidden></label></div>
@@ -514,78 +514,148 @@ function scanner(espaceDefaut) {
       etat.innerHTML = '<div class="chargement">Lecture du document… <b id="sc-pc">0 %</b><div class="aide">La première lecture télécharge le module de lecture (quelques secondes).</div></div>';
       try {
         const fi = /^image\//.test(brut.type) ? await reduireImage(brut) : brut;
-        const r = await window.BFC_TICKET.lireDocument(fi, R.tiers, (p) => { const b = $('#sc-pc', m); if (b) b.textContent = p + ' %'; });
+        const r = await window.BFC_TICKET.lireDocument(brut, R.tiers, (p) => { const b = $('#sc-pc', m); if (b) b.textContent = p + ' %'; });
         r.fichier = fi;
         r.type = /devis/i.test(r.texte) ? 'devis' : /facture|invoice|n° client|echeance|échéance/i.test(r.texte) && r.articles.length < 4 ? 'facture' : 'ticket';
         afficherScan(m, r, espaceDefaut);
-      } catch (e) { etat.innerHTML = `<div class="alerte">${esc(e.message || String(e))}</div>`; }
+      } catch (e) {
+        const refus = e instanceof window.BFC_TICKET.PhotoRefusee;
+        etat.innerHTML = `<div class="alerte" style="${refus ? 'background:#fdecea;border-color:#c0392b;color:#8e1b10' : ''}">${refus ? '📷 <b>Photo refusée.</b> ' : ''}${esc(e.message || String(e))}</div>
+          ${refus ? '<p class="aide">Conseils : ticket posé à plat sur une surface claire, en entier dans l\'image, sans ombre ni reflet, téléphone immobile au-dessus. Puis appuyez à nouveau sur « 📷 Prendre la photo ».</p>' : ''}`;
+        $('#sc-photo', m).value = ''; $('#sc-fichier', m).value = '';
+      }
     };
     $('#sc-photo', m).onchange = (e) => traiter(e.target.files[0]);
     $('#sc-fichier', m).onchange = (e) => traiter(e.target.files[0]);
   });
 }
 
+/* Magasin : retrouve un magasin existant (sans tenir compte des majuscules/accents) ou le crée, sans jamais créer de doublon */
+const cleNom = (s) => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+async function magasinId(nom, categorie_id) {
+  nom = String(nom || '').replace(/\s+/g, ' ').trim().slice(0, 60); if (!nom) return null;
+  const local = R.tiers.find(t => cleNom(t.nom) === cleNom(nom)); if (local) return local.id;
+  const cree = await db.from('tiers').insert({ nom, type: 'fournisseur', categorie_defaut_id: categorie_id || null }).select().single();
+  if (!cree.error) { await A.chargerReferentiels(); return cree.data.id; }
+  if (cree.error.code !== '23505' && !/duplicate|unique/i.test(cree.error.message)) throw new Error('Magasin : ' + cree.error.message);
+  const ex = await db.from('tiers').select('id, nom').ilike('nom', nom).limit(1);   // existe déjà (créé ailleurs) : on le réutilise
+  if (ex.data?.[0]) { await A.chargerReferentiels(); return ex.data[0].id; }
+  throw new Error('Ce magasin existe déjà sous un autre nom : choisissez-le dans la liste.');
+}
+/* Caisse espèces : créée automatiquement au premier paiement en espèces */
+async function caisseEspeces() {
+  const c = R.comptes.find(x => x.actif && x.type === 'especes'); if (c) return c.id;
+  const uid = (await sb.auth.getUser()).data.user?.id;
+  const r = verifier(await db.from('comptes').insert({ nom: 'Caisse espèces', type: 'especes', nature: 'personnel', proprietaire: uid, solde_initial: 0, actif: true }).select().single(), 'Caisse espèces');
+  await A.chargerReferentiels(); toast('Compte « Caisse espèces » créé pour suivre votre argent liquide.'); return r.id;
+}
+const memoComptes = () => { try { return JSON.parse(localStorage.getItem('bsafe-compte-magasin') || '{}'); } catch { return {}; } };
+const memoriserCompte = (magasin, moyen, compte) => { try { const m = memoComptes(); m[cleNom(magasin) + '|' + moyen] = compte; m['|' + moyen] = compte; localStorage.setItem('bsafe-compte-magasin', JSON.stringify(m)); } catch {} };
+const compteMemorise = (magasin, moyen) => { const m = memoComptes(); const id = m[cleNom(magasin) + '|' + moyen] || m['|' + moyen]; return R.comptes.some(c => c.id === id && c.actif) ? id : null; };
+
 function afficherScan(m, r, espaceDefaut) {
   const catCourses = R.categories.find(c => /courses/i.test(c.nom))?.id;
   const tiersCat = R.tiers.find(t => t.id === r.magasin_id)?.categorie_defaut_id;
   const cat0 = tiersCat || (r.type === 'ticket' ? catCourses : null);
   const esp0 = espaceDefaut || R.categories.find(c => c.id === cat0)?.espace || 'quotidien';
-  $('#sc-zone', m).innerHTML = `<form id="f-scan">
+  const moyen0 = r.moyen || 'carte';
+  const compte0 = moyen0 === 'especes' ? (R.comptes.find(c => c.actif && c.type === 'especes')?.id || '__caisse') : (compteMemorise(r.magasin, moyen0) || compteDefaut(moyen0));
+  const comptesOpts = () => optsListe(R.comptes.filter(c => c.actif), f?.compte_id?.value || compte0, 'Choisir…', c => `${c.type === 'especes' ? '💶' : '🏦'} ${c.nom}`)
+    + (R.comptes.some(c => c.actif && c.type === 'especes') ? '' : `<option value="__caisse" ${compte0 === '__caisse' ? 'selected' : ''}>💶 Caisse espèces (créée automatiquement)</option>`);
+  let f = null;
+  $('#sc-zone', m).innerHTML = `<form id="f-scan" novalidate>
     <div class="champ"><div class="bascule" id="sc-type">${Object.entries(TYPES_SCAN).map(([k, l]) => `<button type="button" data-t="${k}" class="${k === r.type ? 'on' : ''}">${l}</button>`).join('')}</div><input type="hidden" name="type" value="${r.type}"></div>
-    <div class="ligne3"><div class="champ"><label>Magasin / fournisseur</label><select name="tiers_id">${optsListe(R.tiers.filter(t => t.type !== 'client' && t.type !== 'salarie'), r.magasin_id, r.magasin && !r.magasin_id ? 'Nouveau : ' + r.magasin.slice(0, 40) : '—')}</select></div>
-      <div class="champ"><label>Date</label><input type="date" name="date" value="${r.date || auj()}"></div>
-      <div class="champ"><label>Total (€) *</label><input name="total" inputmode="decimal" required value="${r.total ?? ''}"></div></div>
+    <div class="verif" id="sc-verif"></div>
+    <div class="ligne3"><div class="champ"><label>Magasin / fournisseur</label><input name="magasin" list="sc-mags" value="${esc(r.magasin || '')}" placeholder="Nom du magasin" autocomplete="off">
+        <datalist id="sc-mags">${R.tiers.filter(t => t.type !== 'client' && t.type !== 'salarie').map(t => `<option value="${esc(t.nom)}">`).join('')}</datalist><div class="aide">Modifiable : tapez le bon nom ou choisissez-le.</div></div>
+      <div class="champ"><label>Date</label><input type="date" name="date" value="${r.date || auj()}" max="${auj()}"></div>
+      <div class="champ"><label>Total (€) *</label><input name="total" inputmode="decimal" required value="${r.total != null ? String(r.total).replace('.', ',') : ''}"></div></div>
     <div id="sc-paye" class="champ" ${r.type === 'facture' ? '' : 'hidden'}><div class="bascule" id="sc-etatp"><button type="button" data-p="payee" class="on">Déjà payée</button><button type="button" data-p="a_payer">À payer</button></div>
       <span id="sc-limite" hidden> avant le <input type="date" name="date_limite" value="${plusJours(r.date || auj(), 15)}" style="width:auto;display:inline-block"></span><input type="hidden" name="paiement" value="payee"></div>
-    <div class="ligne3" id="sc-compta" ${r.type === 'devis' ? 'hidden' : ''}><div class="champ"><label>Payé avec</label><select name="moyen">${opts(MOYENS, r.moyen || 'carte')}</select></div>
-      <div class="champ"><label>Compte</label><select name="compte_id">${optsListe(R.comptes.filter(c => c.actif), compteDefaut(r.moyen || 'carte'), 'Choisir…', c => `${c.type === 'especes' ? '💶' : '🏦'} ${c.nom}`)}</select></div>
+    <div class="ligne3" id="sc-compta" ${r.type === 'devis' ? 'hidden' : ''}><div class="champ"><label>Payé avec</label><select name="moyen">${opts(MOYENS, moyen0)}</select></div>
+      <div class="champ"><label>Compte</label><select name="compte_id">${comptesOpts()}</select></div>
       <div class="champ"><label>Catégorie</label><select name="categorie_id">${optsListe(R.categories.filter(c => c.type === 'depense'), cat0, '—')}</select></div></div>
     <div class="ligne"><div class="champ"><label>Espace de vie</label><select name="espace">${R.espaces.map(x => `<option value="${x.code}" ${x.code === esp0 ? 'selected' : ''}>${x.icone} ${esc(x.nom)}</option>`).join('')}</select></div>
       <div class="champ"><label>Libellé</label><input name="libelle" value="${esc((r.type === 'ticket' ? 'Courses' : r.type === 'devis' ? 'Devis' : 'Facture') + (r.magasin ? ' – ' + r.magasin.slice(0, 40) : ''))}"></div></div>
     <label class="case" id="sc-prod-l" ${r.type === 'ticket' ? '' : 'hidden'}><input type="checkbox" name="produits" ${r.type === 'ticket' ? 'checked' : ''}> Enregistrer les articles dans la base produits (prix mis à jour)</label>
-    <label>Articles reconnus (<span id="sc-n">${r.articles.length}</span>) <button type="button" class="btn btn-petit btn-fantome" id="sc-plus">＋ Article</button></label>
-    <div class="tableau-wrap" style="max-height:240px;overflow:auto"><table><thead><tr><th>Article</th><th style="width:64px">Qté</th><th style="width:84px">Prix u.</th><th></th></tr></thead><tbody id="sc-art"></tbody></table></div>
-    <div class="aide" id="sc-ctrl"></div>
-    <details style="margin-top:6px"><summary class="aide">Texte lu (pour vérifier)</summary><pre style="white-space:pre-wrap;font-size:.75rem;max-height:150px;overflow:auto">${esc(r.texte)}</pre></details>
-    <div class="modale-pied"><button type="button" class="btn btn-fantome" data-fermer>Annuler</button><button class="btn btn-primaire">💾 Enregistrer</button></div></form>`;
-  const f = $('#f-scan', m), tb = $('#sc-art', m);
+    <div class="sc-art-tete"><b>Articles (<span id="sc-n">${r.articles.length}</span>)</b></div>
+    <div id="sc-art" class="sc-lignes"></div>
+    <button type="button" class="btn btn-fantome" id="sc-plus" style="width:100%;justify-content:center;margin-top:6px">＋ Ajouter une ligne</button>
+    <details style="margin-top:8px"><summary class="aide">Texte lu sur la photo (pour contrôle)</summary><pre style="white-space:pre-wrap;font-size:.75rem;max-height:150px;overflow:auto">${esc(r.texte)}</pre></details>
+    <div class="modale-pied"><button type="button" class="btn btn-fantome" data-fermer>Annuler</button><button class="btn btn-primaire" id="sc-valider">✅ Valider le ticket</button></div></form>`;
+  f = $('#f-scan', m); const zone = $('#sc-art', m);
+  const e2 = (v) => fmt(Math.round((v || 0) * 100) / 100);
   const dessiner = () => {
-    tb.innerHTML = r.articles.map((a, i) => `<tr><td><input data-i="${i}" data-k="libelle" value="${esc(a.libelle)}"></td><td><input data-i="${i}" data-k="quantite" value="${a.quantite}" inputmode="decimal"></td><td><input data-i="${i}" data-k="prix_unitaire" value="${a.prix_unitaire}" inputmode="decimal"></td><td><button type="button" class="btn-x" data-retirer="${i}">×</button></td></tr>`).join('') || '<tr><td colspan="4" class="vide">Aucun article (facultatif).</td></tr>';
+    zone.innerHTML = r.articles.map((a, i) => `<div class="sc-ligne" data-i="${i}">
+        <input class="sc-lib" data-k="libelle" value="${esc(a.libelle)}" placeholder="Article">
+        <label>Qté<input data-k="quantite" value="${String(a.quantite).replace('.', ',')}" inputmode="decimal"></label>
+        <label>Prix u.<input data-k="prix_unitaire" value="${String(a.prix_unitaire).replace('.', ',')}" inputmode="decimal"></label>
+        <span class="sc-tot">${e2(a.quantite * a.prix_unitaire)}</span>
+        <button type="button" class="sc-suppr" data-retirer="${i}" title="Supprimer la ligne" aria-label="Supprimer la ligne">🗑</button></div>`).join('')
+      || '<p class="vide" style="margin:6px 0">Aucun article : facultatif (utile pour suivre les prix).</p>';
     controle();
   };
-  const controle = () => { $('#sc-n', m).textContent = r.articles.length;
+  const controle = () => {
+    $('#sc-n', m).textContent = r.articles.length;
     const s = Math.round(r.articles.reduce((a, x) => a + (x.quantite || 0) * (x.prix_unitaire || 0), 0) * 100) / 100, t = num(f, 'total');
-    $('#sc-ctrl', m).innerHTML = r.articles.length ? `Somme des articles : <b>${fmt(s)}</b>${t && Math.abs(s - t) > 0.05 ? ` · <span style="color:var(--rouge)">écart de ${fmt(t - s)} avec le total (remises, articles mal lus ?)</span>` : ' ✓'}` : ''; };
+    const ctl = [];
+    const magOk = !!val(f, 'magasin');
+    ctl.push([magOk, magOk ? (r.magasin_sur && cleNom(val(f, 'magasin')) === cleNom(r.magasin) ? `Magasin reconnu : ${val(f, 'magasin')}` : `Magasin : ${val(f, 'magasin')}`) : 'Magasin à indiquer']);
+    ctl.push([!!r.date || f.date.dataset.touche === '1', r.date ? `Date lue sur le ticket : ${fmtDate(r.date)}` : f.date.dataset.touche === '1' ? `Date : ${fmtDate(val(f, 'date'))}` : 'Date absente du ticket : date du jour proposée, vérifiez-la']);
+    const totOk = t > 0 && (r.verifie && Math.abs(t - r.total) < 0.005 || f.total.dataset.touche === '1');
+    ctl.push([totOk, !(t > 0) ? 'Total à indiquer' : r.verifie && Math.abs(t - r.total) < 0.005 ? `Total ${e2(t)} vérifié (${r.sources_total.join(', ')})` : f.total.dataset.touche === '1' ? `Total ${e2(t)} saisi par vous` : `Total ${e2(t)} lu une seule fois : vérifiez-le sur le ticket`]);
+    if (r.articles.length) ctl.push([Math.abs(s - t) <= 0.02, Math.abs(s - t) <= 0.02 ? `${r.articles.length} ligne(s), somme ${e2(s)} = total` : `Somme des lignes ${e2(s)} ≠ total ${e2(t)} : écart ${e2(t - s)} (corrigez, ajoutez ou supprimez une ligne)`]);
+    (r.corrections || []).forEach(c => ctl.push([true, 'Corrigé automatiquement : ' + c]));
+    if (r.moyen) ctl.push([true, `Paiement lu sur le ticket : ${MOYENS[r.moyen]}`]);
+    const ko = ctl.filter(c => !c[0]).length;
+    $('#sc-verif', m).innerHTML = `<div class="verif-tete ${ko ? 'ko' : 'ok'}">${ko ? `⚠️ ${ko} point${ko > 1 ? 's' : ''} à vérifier` : '✅ Tout est vérifié : il ne reste qu\'à valider'}</div>`
+      + ctl.map(c => `<div class="verif-l ${c[0] ? 'ok' : 'ko'}">${c[0] ? '✅' : '⚠️'} ${esc(c[1])}</div>`).join('');
+    $('#sc-valider', m).textContent = ko ? '✅ Valider quand même' : '✅ Valider le ticket';
+    zone.querySelectorAll('.sc-ligne').forEach(l => { const a = r.articles[+l.dataset.i]; if (a) l.querySelector('.sc-tot').textContent = e2(a.quantite * a.prix_unitaire); });
+  };
   dessiner();
-  tb.oninput = (e) => { const i = e.target.dataset.i; if (i == null) return; const k = e.target.dataset.k; r.articles[i][k] = k === 'libelle' ? e.target.value : Number(String(e.target.value).replace(',', '.')) || 0; controle(); };
-  tb.onclick = (e) => { const b = e.target.closest('[data-retirer]'); if (b) { r.articles.splice(+b.dataset.retirer, 1); dessiner(); } };
-  f.total.oninput = controle;
-  $('#sc-plus', m).onclick = () => { r.articles.push({ libelle: '', quantite: 1, prix_unitaire: 0 }); dessiner(); };
+  zone.oninput = (e) => { const l = e.target.closest('.sc-ligne'); const k = e.target.dataset.k; if (!l || !k) return; const a = r.articles[+l.dataset.i];
+    a[k] = k === 'libelle' ? e.target.value : Number(String(e.target.value).replace(',', '.')) || 0; controle(); };
+  zone.onclick = (e) => { const b = e.target.closest('[data-retirer]'); if (b) { r.articles.splice(+b.dataset.retirer, 1); dessiner(); } };
+  f.total.oninput = () => { f.total.dataset.touche = '1'; controle(); };
+  f.date.oninput = () => { f.date.dataset.touche = '1'; controle(); };
+  f.magasin.oninput = () => { const t = R.tiers.find(x => cleNom(x.nom) === cleNom(f.magasin.value)); if (t?.categorie_defaut_id) f.categorie_id.value = t.categorie_defaut_id;
+    const c = compteMemorise(f.magasin.value, f.moyen.value); if (c) f.compte_id.value = c; controle(); };
+  $('#sc-plus', m).onclick = () => { r.articles.push({ libelle: '', quantite: 1, prix_unitaire: 0 }); dessiner(); zone.querySelector('.sc-ligne:last-child .sc-lib')?.focus(); };
   $('#sc-type', m).onclick = (e) => { const b = e.target.closest('button'); if (!b) return; f.type.value = b.dataset.t; $$('#sc-type button', m).forEach(x => x.classList.toggle('on', x === b));
     $('#sc-paye', m).hidden = b.dataset.t !== 'facture'; $('#sc-compta', m).hidden = b.dataset.t === 'devis'; $('#sc-prod-l', m).hidden = b.dataset.t !== 'ticket'; f.produits.checked = b.dataset.t === 'ticket'; };
   $('#sc-etatp', m).onclick = (e) => { const b = e.target.closest('button'); if (!b) return; f.paiement.value = b.dataset.p; $$('#sc-etatp button', m).forEach(x => x.classList.toggle('on', x === b)); $('#sc-limite', m).hidden = b.dataset.p !== 'a_payer'; };
-  f.moyen.onchange = () => { if (f.moyen.value === 'especes') f.compte_id.value = compteDefaut('especes') || ''; };
+  f.moyen.onchange = () => { const mo = f.moyen.value;
+    if (mo === 'especes') f.compte_id.value = R.comptes.find(c => c.actif && c.type === 'especes')?.id || '__caisse';
+    else { const c = compteMemorise(f.magasin.value, mo) || compteDefaut(mo); if (c) f.compte_id.value = c; } };
   f.categorie_id.onchange = () => { const c = R.categories.find(x => x.id === f.categorie_id.value); if (c?.espace) f.espace.value = c.espace; };
-  f.onsubmit = (e) => { e.preventDefault(); action(f.querySelector('.btn-primaire'), async () => {
+  f.onsubmit = (e) => { e.preventDefault(); action($('#sc-valider', m), async () => {
     const type = f.type.value, total = num(f, 'total');
+    // 1. tous les contrôles AVANT d'écrire quoi que ce soit (pas d'enregistrement à moitié fait)
     if (!(total > 0)) throw new Error('Indiquez le total.');
-    let tiers_id = val(f, 'tiers_id');
-    if (!tiers_id && r.magasin) { tiers_id = verifier(await db.from('tiers').insert({ nom: r.magasin.slice(0, 60), type: 'fournisseur', categorie_defaut_id: val(f, 'categorie_id') }).select().single(), 'Magasin').id; await A.chargerReferentiels(); }
-    const espace = val(f, 'espace'), date = val(f, 'date'), libelle = val(f, 'libelle') || TYPES_SCAN[type];
+    const date = val(f, 'date'); if (!date) throw new Error('Indiquez la date.');
+    if (date > auj()) throw new Error('La date ne peut pas être dans le futur.');
+    const besoinCompte = type !== 'devis' && !(type === 'facture' && f.paiement.value === 'a_payer');
+    if (besoinCompte && !val(f, 'compte_id')) throw new Error('Choisissez le compte (ou la caisse espèces).');
+    r.articles = r.articles.filter(a => String(a.libelle).trim() && a.prix_unitaire > 0);
+    // 2. écritures
+    const tiers_id = await magasinId(val(f, 'magasin'), val(f, 'categorie_id'));
+    let compte_id = val(f, 'compte_id'); if (compte_id === '__caisse') compte_id = await caisseEspeces();
+    const espace = val(f, 'espace'), libelle = val(f, 'libelle') || TYPES_SCAN[type];
     const lien = { type: type === 'ticket' ? 'ticket' : type, date_document: date, montant: total, tiers_id, espace, structure_code: espace === 'travail' ? 'bformatik' : 'bforcompta', notes: libelle };
     let op = null, ech = null;
     if (type === 'devis') {
       await televerserDocuments([r.fichier], lien);
     } else if (type === 'facture' && f.paiement.value === 'a_payer') {
-      ech = verifier(await db.from('echeances').insert({ libelle, montant: total, frequence: 'ponctuelle', premiere_date: val(f, 'date_limite') || date, espace, tiers_id, compte_id: val(f, 'compte_id'),
+      ech = verifier(await db.from('echeances').insert({ libelle, montant: total, frequence: 'ponctuelle', premiere_date: val(f, 'date_limite') || date, espace, tiers_id, compte_id,
         categorie_id: val(f, 'categorie_id'), moyen_paiement: val(f, 'moyen'), origine: 'manuel', rappel_jours: 3 }).select().single(), 'Facture à payer');
       await televerserDocuments([r.fichier], { ...lien, echeance_id: ech.id, compte_id: ech.compte_id });
     } else {
-      if (!val(f, 'compte_id')) throw new Error('Choisissez le compte (ou la caisse espèces).');
-      op = verifier(await db.from('operations').insert({ type: 'depense', montant: total, date_operation: date, libelle, compte_id: val(f, 'compte_id'), moyen_paiement: val(f, 'moyen'),
+      op = verifier(await db.from('operations').insert({ type: 'depense', montant: total, date_operation: date, libelle, compte_id, moyen_paiement: val(f, 'moyen'),
         tiers_id, categorie_id: val(f, 'categorie_id'), espace, structure_code: espace === 'travail' ? 'bformatik' : 'bforcompta',
         notes: r.articles.length ? r.articles.map(a => `${a.quantite} × ${a.libelle} ${a.prix_unitaire}`).join(' ; ').slice(0, 1000) : null }).select().single(), 'Dépense');
-      await televerserDocuments([r.fichier], { ...lien, operation_id: op.id, compte_id: op.compte_id });
+      memoriserCompte(val(f, 'magasin'), val(f, 'moyen'), compte_id);
+      await televerserDocuments([r.fichier], { ...lien, operation_id: op.id, compte_id: op.compte_id }).catch(err => toast('Dépense enregistrée, mais la photo du ticket n\'a pas pu être jointe : ' + err.message, true));
     }
     // base produits : mise à jour du prix habituel, création des nouveaux produits
     const prix = [];
@@ -598,11 +668,11 @@ function afficherScan(m, r, espaceDefaut) {
       }
     }
     // base de prix commune (tickets uniquement : ce sont des prix réellement payés)
-    if (type === 'ticket' && r.articles.length && A.enregistrerPrix) { const magNom = R.tiers.find(t => t.id === tiers_id)?.nom || r.magasin; let lieu = null; try { lieu = JSON.parse(localStorage.getItem('bsafe-lieu'))?.nom || null; } catch {}
+    if (type === 'ticket' && r.articles.length && A.enregistrerPrix) { const magNom = R.tiers.find(t => t.id === tiers_id)?.nom || val(f, 'magasin') || r.magasin; let lieu = null; try { lieu = JSON.parse(localStorage.getItem('bsafe-lieu'))?.nom || null; } catch {}
       await A.enregistrerPrix(r.articles, magNom, { ville: lieu, source: 'ticket', date }).catch(() => {}); }
     fermerModale();
     toast(type === 'devis' ? 'Devis enregistré.' : ech ? 'Facture à payer ajoutée à l\'échéancier.' : 'Dépense enregistrée avec son justificatif.');
-    await rapportDepense({ type, total, date, libelle, espace, categorie_id: val(f, 'categorie_id'), tiers_id, op, ech, prix, compte_id: val(f, 'compte_id') });
+    await rapportDepense({ type, total, date, libelle, espace, categorie_id: val(f, 'categorie_id'), tiers_id, op, ech, prix, compte_id });
   }); };
 }
 
@@ -649,6 +719,8 @@ async function rapportDepense(x) {
   if (/aujourdhui|espace|echeances|^#?\/?$/.test(location.hash)) { const el = $('#vue'); const cible = location.hash; setTimeout(() => { if (location.hash === cible) VUES[(cible.replace(/^#\/?/, '') || 'aujourdhui').split('/')[0]]?.(el, cible.split('/')[2]); }, 50); }
 }
 A.scanner = scanner;
+A.magasinId = magasinId;
+A.caisseEspeces = caisseEspeces;
 
 A.formEcheance = formEcheance;
 });
